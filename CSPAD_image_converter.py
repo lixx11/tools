@@ -49,6 +49,7 @@ class CSPADImageConverter(object):
         self.x = None
         self.y = None
         self.z = None
+        self.center = None  # center coordinate in pixel.
         self.reassembled_data = self._reassemble()
 
 
@@ -97,6 +98,7 @@ class CSPADImageConverter(object):
         center_x = np.where(np.abs(xx) == np.abs(xx).min())[1][0]
         center_y = np.where(np.abs(yy) == np.abs(yy).min())[0][0]
         center = np.asarray((center_x, center_y))
+        self.center = center
         interp_data = griddata(xyz[:,0:2], raw_data_1d, (xx, yy), method='linear', fill_value=0)
 
         if self.show:
