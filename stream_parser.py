@@ -1,12 +1,20 @@
 #! coding=utf-8
 
+"""
+Usage: 
+    stream_parser.py <stream_file> [--max-chunks=<mc>]
+
+Options:
+    -h --help       Show this screen.
+    --max-chunks=<mc>    Max chunks to process [default: inf].
+"""
 
 import numpy as np 
 import scipy as sp 
 import os
 import sys
-import matplotlib
-import matplotlib.pyplot as plt 
+from docopt import docopt
+
 
 class Chunk(object):
     def __init__(self, image_filename, event):
@@ -128,6 +136,9 @@ class IndexStat(object):
             pass
 
     def show_cell_parameter(self, bin_size=2., padding=10.):
+        import matplotlib
+        import matplotlib.pyplot as plt 
+
         if self.index_method == "none":
             print("Warning! None Indexing Method!")
         else:
@@ -155,28 +166,20 @@ class IndexStat(object):
 
 
 def get_chunk_num(stream_file):
-    """Summary
-    
-    Args:
-        stream_file (string): filepath of stream file
-    
-    Returns:
-        n_chunks (int): number of chunks
-    """
     import subprocess
     grep = subprocess.Popen(('grep', 'Begin chunk', stream_file), stdout=subprocess.PIPE)
     total_chunks = sum([1 for line in grep.stdout])
     return total_chunks
 
 
-def parse_stream(filepath, max_chunk=np.inf):
+def parse_stream(filepath, max_chunks=np.inf):
     total_chunks = get_chunk_num(filepath)
     stream_file = open(filepath)
     chunks = []
     indexed_bys = []
     image_filenames = []
     count_chunk = 0
-    while count_chunk < max_chunk:
+    while count_chunk < max_chunks:
         line = stream_file.readline()
         if line:
             if "Begin chunk" in line:
@@ -291,7 +294,7 @@ def parse_stream(filepath, max_chunk=np.inf):
     index_stats.sort(key=lambda x: x.indexed_num, reverse=True)
     print("\n")
     print("===========STREAM SUMMARY=============")
-    print("%16s: %d" %("Total Processed Pattern", chunks_num))
+    print("%16s: %d" %("Total Processed Chunks", chunks_num))
     for i in xrange(len(index_stats)):
         print("%-16s: %s" %("indexing method", index_stats[i].index_method))
         indexing_rate = float(index_stats[i].indexed_num) / chunks_num
@@ -304,10 +307,13 @@ def parse_stream(filepath, max_chunk=np.inf):
     return index_stats
 
 
-
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print("Please specify stream file to process")
-        sys.exit()
-    stream_file = sys.argv[1]
-    index_stats = parse_stream(stream_file)
+    argv = docopt(__doc__)
+    stream_file = argv['<stream_file>']
+    max_chunks = argv['--max-chunks']
+    if max_chunks == 'inf':
+        max_chunks = np.inf
+    else:
+        max_chunks = int(max_chunks)
+
+    index_stats = parse_stream(stream_file, max_chunks=max_chunks)
