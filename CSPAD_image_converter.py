@@ -83,7 +83,7 @@ class CSPADImageConverter(object):
         xyz[:,0] = x
         xyz[:,1] = y 
         xyz[:,2] = z 
-        raw_data_1d = raw_data.reshape(-1)
+        raw_data_1d = self.raw_data.reshape(-1)
         # calculate new pattern coorodinates
         x_range = x.max() - x.min()
         y_range = y.max() - y.min()
