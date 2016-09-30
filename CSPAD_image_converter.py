@@ -67,7 +67,7 @@ class CSPADImageConverter(object):
             geom_data = h5py.File(temp_h5, 'r')
         elif file_ext == '.h5':
             print('using Cheetah geom file')
-            geom_data = h5py.File(geom_file, 'r')
+            geom_data = h5py.File(self.geom_file, 'r')
         else:
             print('ERROR! Unrecognized geom type: %s' %file_ext)
             print('Plese provide CrysFEL, psana or Cheetah geom file.')
