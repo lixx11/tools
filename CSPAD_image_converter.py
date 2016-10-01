@@ -23,12 +23,13 @@ import sys
 
 class CSPADImageConverter(object):
     """docstring for CSPADImageConverter"""
-    def __init__(self, raw_data, geom_file, padding=10.E-3, pixel_size=0.11E-3, show=False):
+    def __init__(self, raw_data, geom_file, method='linear', padding=10.E-3, pixel_size=0.11E-3, show=False):
         """Summary
         
         Args:
             raw_data (numpy.ndarray): raw data, the size must be 1480*1552.
             geom_file (string): CrystFEL, psana or Cheetah geometry file.
+            method (str, optional): Interpolation method. Default: linear.
             padding (float, optional): add padding around converted pattern, in m.
             pixel_size (float, optional): detector pixel size in m.
             show (bool, optional): Wether show converted data or not.
@@ -43,6 +44,7 @@ class CSPADImageConverter(object):
             sys.exit()
         self.raw_data = raw_data
         self.geom_file = geom_file
+        self.method = method
         self.padding = padding  # add padding around converted pattern, in m.
         self.pixel_size = pixel_size  # in m.
         self.show = show
@@ -99,13 +101,42 @@ class CSPADImageConverter(object):
         center_y = np.where(np.abs(yy) == np.abs(yy).min())[0][0]
         center = np.asarray((center_x, center_y))
         self.center = center
-        interp_data = griddata(xyz[:,0:2], raw_data_1d, (xx, yy), method='linear', fill_value=0)
+        interp_data = griddata(xyz[:,0:2], raw_data_1d, (xx, yy), method=self.method, fill_value=0)
 
         if self.show:
             import matplotlib.pyplot as plt 
             plt.imshow(interp_data, interpolation='nearest')
             plt.show(block=True)
         return interp_data
+
+    def map2new_coor(self, raw_coor):
+        """Summary
+        
+        Args:
+            raw_coor (array_like, shape N*2): Raw coordinate (ss, fs) to be converted to new coordinate in reassemble pattern. 
+                                   Note: ss range: 0-1479, fs range: 0-1551
+        
+        Returns:
+            new_coor (ndarray, shape N*2): New coordinate in reassemble pattern.
+        """
+        raw_coor = np.asarray(raw_coor)
+        if raw_coor.size == 2:
+            raw_coor = raw_coor.reshape((1,2))
+        if len(raw_coor.shape) != 2 or raw_coor.shape[1] != 2:
+            print('ERROR! Not valid raw coordinate. The shape should be N*2.')
+            sys.exit()
+        if  raw_coor[:,0].min() < 0 or raw_coor[:,0].max() > 1479 \
+            or raw_coor[:,1].min() < 0 or raw_coor[:,1].max() > 1551:
+            print("ERROR! Not valid raw coordinate. Raw coor: ss(0-1479), fs(0-1551)")
+            sys.exit()
+        num_coor = raw_coor.shape[0]
+        raw_coor = np.round(raw_coor).astype(int)
+        new_coor_x = self.center[0] + self.x[raw_coor[:,0], raw_coor[:,1]] / self.pixel_size
+        new_coor_y = self.center[1] + self.y[raw_coor[:,0], raw_coor[:,1]] / self.pixel_size
+        new_coor = np.zeros((num_coor, 2))
+        new_coor[:,0] = new_coor_x
+        new_coor[:,1] = new_coor_y
+        return new_coor
 
 
 if __name__ == '__main__':
