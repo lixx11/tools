@@ -174,6 +174,15 @@ def get_chunk_num(stream_file):
 
 
 def parse_stream(filepath, max_chunks=np.inf):
+    """Summary
+    
+    Args:
+        filepath (string): stream filepath
+        max_chunks (int, optional): max chunks to process
+    
+    Returns:
+        List of index_stats: Description
+    """
     total_chunks = get_chunk_num(filepath)
     stream_file = open(filepath)
     chunks = []
