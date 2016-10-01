@@ -1,0 +1,13 @@
+# pyc, npy, npz files
+*.pyc
+*.npy
+*.npz
+
+# data files
+data/*
+
+# hidden files except .gitignore
+.*
+!.gitignore
+
+test.py
