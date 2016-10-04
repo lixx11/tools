@@ -71,7 +71,7 @@ class MyImageView(pg.ImageView):
     addImageSignal = pyqtSignal(str)
 
     def __init__(self, parent=None, *args):
-        super(MyImageView, self).__init__(parent, *args)
+        super(MyImageView, self).__init__(parent, view=pg.PlotItem(), *args)
         self.setAcceptDrops(True)
         self.filepath = None
         self.accepted_filetypes = [u'npy', u'png']
@@ -117,7 +117,7 @@ def mouseMoved(event):
     data = imageView.image
     if imageView.filepath == None:
         return None
-    mouse_point = imageView.view.mapSceneToView(event[0])
+    mouse_point = imageView.view.mapToView(event[0])
     x, y = int(mouse_point.x()), int(mouse_point.y())
     filename = os.path.basename(str(win.imageView.filepath))
     if 0 <= x < data.shape[0] and 0 <= y < data.shape[1]:
