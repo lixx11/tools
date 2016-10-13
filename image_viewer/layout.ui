@@ -119,22 +119,22 @@
   <customwidget>
    <class>MyImageView</class>
    <extends>QGraphicsView</extends>
-   <header>image_viewer-dev</header>
+   <header>image_viewer</header>
   </customwidget>
   <customwidget>
    <class>FilenameListWidget</class>
    <extends>QListWidget</extends>
-   <header>image_viewer-dev</header>
+   <header>image_viewer</header>
   </customwidget>
   <customwidget>
    <class>MyPlotWidget</class>
    <extends>QGraphicsView</extends>
-   <header>image_viewer-dev</header>
+   <header>image_viewer</header>
   </customwidget>
   <customwidget>
    <class>MyParameterTree</class>
    <extends>QTreeWidget</extends>
-   <header>image_viewer-dev</header>
+   <header>image_viewer</header>
   </customwidget>
  </customwidgets>
  <resources/>
