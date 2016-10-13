@@ -19,7 +19,7 @@ from pyqtgraph.parametertree import ParameterTree, Parameter
 from pyqtgraph import PlotDataItem
 import numpy as np
 import scipy as sp
-from scipy.signal import savgol_filter
+from scipy.signal import savgol_filter, argrelmax, argrelmin
 from docopt import docopt
 import datetime
 from util import *
@@ -50,7 +50,7 @@ def getFilepathFromLocalFileID(localFileID):
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
-        uic.loadUi('layout-dev.ui', self)
+        uic.loadUi('layout.ui', self)
         self.plotWidget.hide()
         self.splitter_2.setSizes([self.width()*0.7, self.width()*0.3])
         self.setAcceptDrops(True)
@@ -67,6 +67,7 @@ class MainWindow(QMainWindow):
         self.ringItem = pg.ScatterPlotItem()
         self.imageView.getView().addItem(self.ringItem)
 
+        # basic operation
         self.axis = 'x'
         self.frameIndex = 0
         self.maskFlag = False
@@ -76,19 +77,30 @@ class MainWindow(QMainWindow):
         self.showRings = False 
         self.ringRadiis = []
 
-        self.profileItem = PlotDataItem(pen=pg.mkPen('y', width=1, style=QtCore.Qt.SolidLine))
-        self.smoothItem = PlotDataItem(pen=pg.mkPen('g', width=2, style=QtCore.Qt.DotLine))
+        self.profileItem = PlotDataItem(pen=pg.mkPen('y', width=1, style=QtCore.Qt.SolidLine), name='profile')
+        self.smoothItem = PlotDataItem(pen=pg.mkPen('g', width=2, style=QtCore.Qt.DotLine), name='smoothed profile')
+        self.thresholdItem = PlotDataItem(pen=pg.mkPen('r'), width=1, style=QtCore.Qt.DashLine, name='thredhold')
+        self.plotWidget.addLegend()
         self.plotWidget.addItem(self.profileItem)
         self.plotWidget.addItem(self.smoothItem)
+        self.plotWidget.addItem(self.thresholdItem)
+        # profile option
         self.showProfile = False
         self.profileType = 'radial'
+        self.profileMode = 'sum'
+        # extrema search
+        self.extremaSearch = False
+        self.extremaType = 'max'
+        self.extremaWinSize = 11
+        self.extremaThreshold = 1.0  # ratio compared to mean value
+        # angular option
         self.angularRmin = 0.
         self.angularRmax = np.inf
-        self.profileMode = 'sum'
+        # profile smoothing
         self.smoothFlag = False 
         self.smoothWinSize = 15
         self.polyOrder = 3
-
+        # display option
         self.profileLog = False
         self.imageAutoRange = True 
         self.imageAutoLevels = True 
@@ -123,6 +135,12 @@ class MainWindow(QMainWindow):
                               {'name': 'Enable Smoothing', 'type': 'bool', 'value': self.smoothFlag},
                               {'name': 'Window Size', 'type': 'int', 'value': self.smoothWinSize},
                               {'name': 'Poly-Order', 'type': 'int', 'value': self.polyOrder},
+                          ]},
+                          {'name': 'Extrema Search', 'type': 'group', 'children': [
+                              {'name': 'Enable Extrema Search', 'type': 'bool', 'value': self.extremaSearch},
+                              {'name': 'Extrema Type', 'type': 'list', 'values': ['max', 'min'], 'value': self.extremaType},
+                              {'name': 'Extrema WinSize', 'type': 'int', 'value': self.extremaWinSize},
+                              {'name': 'Extrema Threshold', 'type': 'float', 'value': self.extremaThreshold},
                           ]}
                       ]},
                       {'name': 'Display Option', 'type': 'group', 'children': [
@@ -142,6 +160,7 @@ class MainWindow(QMainWindow):
 
         self.fileList.itemDoubleClicked.connect(self.changeImageSlot)
         self.fileList.customContextMenuRequested.connect(self.showFileMenuSlot)
+
         self.params.param('Basic Operation', 'Axis').sigValueChanged.connect(self.axisChangedSlot)
         self.params.param('Basic Operation', 'Frame Index').sigValueChanged.connect(self.frameIndexChangedSlot)
         self.params.param('Basic Operation', 'Apply Mask').sigValueChanged.connect(self.applyMaskSlot)
@@ -151,6 +170,7 @@ class MainWindow(QMainWindow):
         self.params.param('Basic Operation', 'Center y').sigValueChanged.connect(self.centerYChangedSlot)
         self.params.param('Basic Operation', 'Show Rings').sigValueChanged.connect(self.showRingsSlot)
         self.params.param('Basic Operation', 'Ring Radiis').sigValueChanged.connect(self.ringRadiiSlot)
+
         self.params.param('Radial or Angular Profile', 'Show Profile').sigValueChanged.connect(self.showProfileSlot)
         self.params.param('Radial or Angular Profile', 'Radial or Angular').sigValueChanged.connect(self.setProfileTypeSlot)
         self.params.param('Radial or Angular Profile', 'Profile Mode').sigValueChanged.connect(self.setProfileModeSlot)
@@ -159,6 +179,11 @@ class MainWindow(QMainWindow):
         self.params.param('Radial or Angular Profile', 'Smoothing', 'Enable Smoothing').sigValueChanged.connect(self.setSmooth)
         self.params.param('Radial or Angular Profile', 'Smoothing', 'Window Size').sigValueChanged.connect(self.setWinSize)
         self.params.param('Radial or Angular Profile', 'Smoothing', 'Poly-Order').sigValueChanged.connect(self.setPolyOrder)
+        self.params.param('Radial or Angular Profile', 'Extrema Search', 'Enable Extrema Search').sigValueChanged.connect(self.setExtremaSearch)
+        self.params.param('Radial or Angular Profile', 'Extrema Search', 'Extrema Type').sigValueChanged.connect(self.setExtremaType)
+        self.params.param('Radial or Angular Profile', 'Extrema Search', 'Extrema WinSize').sigValueChanged.connect(self.setExtremaWinSize)
+        self.params.param('Radial or Angular Profile', 'Extrema Search', 'Extrema Threshold').sigValueChanged.connect(self.setExtremaThreshold)
+
         self.params.param('Display Option', 'Image Option', 'autoRange').sigValueChanged.connect(self.imageAutoRangeSlot)
         self.params.param('Display Option', 'Image Option', 'autoLevels').sigValueChanged.connect(self.imageAutoLevelsSlot)
         self.params.param('Display Option', 'Image Option', 'autoHistogramRange').sigValueChanged.connect(self.imageAutoHistogramRangeSlot)
@@ -248,10 +273,23 @@ class MainWindow(QMainWindow):
                     self.plotWidget.setLabels(bottom='theta/deg')
                 if self.smoothFlag == True:
                     smoothed_profile = savgol_filter(profile, self.smoothWinSize, self.polyOrder)
-                    # print(smoothed_profile)
                     self.smoothItem.setData(smoothed_profile)
                 else:
                     self.smoothItem.clear()
+                profile_with_noise = profile + np.random.rand(profile.size)*1E-5  # add some noise to avoid same integer value in profile
+                if self.extremaSearch == True:
+                    if self.extremaType == 'max':
+                        extrema_indices = argrelmax(profile_with_noise, order=self.extremaWinSize)[0]
+                    else:
+                        extrema_indices = argrelmin(profile_with_noise, order=self.extremaWinSize)[0]
+                    print_with_timestamp(extrema_indices)
+                    extremas = profile[extrema_indices]
+                    filtered_extrema_indices = extrema_indices[extremas>self.extremaThreshold*profile.mean()]
+                    filtered_extremas = profile[filtered_extrema_indices]
+                    print_with_timestamp(filtered_extrema_indices)
+                    self.thresholdItem.setData(np.ones_like(profile)*profile.mean()*self.extremaThreshold)
+                else:
+                    self.thresholdItem.clear()
                 if self.profileLog == True:
                     radialProfile[radialProfile < 1.] = 1.
                     self.profileItem.setData(radialProfile)
@@ -314,6 +352,34 @@ class MainWindow(QMainWindow):
                 _cx = np.ones_like(self.ringRadiis) * self.center[0]
                 _cy = np.ones_like(self.ringRadiis) * self.center[1]
             self.ringItem.setData(_cx, _cy, size=self.ringRadiis*2., symbol='o', brush=(255,255,255,0), pen='r', pxMode=False)            
+
+    @pyqtSlot(object)
+    def setExtremaSearch(self, extremaSearch):
+        extremaSearch = extremaSearch.value()
+        print_with_timestamp('set extrema search: %s' %str(extremaSearch))
+        self.extremaSearch = extremaSearch
+        self.maybePlotProfile()
+
+    @pyqtSlot(object)
+    def setExtremaWinSize(self, extremaWinSize):
+        extremaWinSize = extremaWinSize.value()
+        print_with_timestamp('set extrema window size: %s' %str(extremaWinSize))
+        self.extremaWinSize = extremaWinSize
+        self.maybePlotProfile()
+
+    @pyqtSlot(object)
+    def setExtremaType(self, extremaType):
+        extremaType = extremaType.value()
+        print_with_timestamp('set extrema type: %s' %str(extremaType))
+        self.extremaType = extremaType
+        self.maybePlotProfile()
+
+    @pyqtSlot(object)
+    def setExtremaThreshold(self, extremaThreshold):
+        extremaThreshold = extremaThreshold.value()
+        print_with_timestamp('set extrema threshold: %s' %str(extremaThreshold))
+        self.extremaThreshold = extremaThreshold
+        self.maybePlotProfile()
 
     @pyqtSlot(object)
     def axisChangedSlot(self, axis):
@@ -479,6 +545,13 @@ class MainWindow(QMainWindow):
         self.angularRmax = Rmax
         self.changeDisp()
         self.maybePlotProfile()
+
+    # @pyqtSlot(object)
+    # def setShowLocalMaxima(self, showLocalMaxima):
+    #     showLocalMaxima = showLocalMaxima.value()
+    #     print_with_timestamp('set show local maxima to %s' %str(showLocalMaxima))
+    #     self.showLocalMaxima = showLocalMaxima
+    #     self.maybePlotProfile()
 
 class MyImageView(pg.ImageView):
     """docstring for MyImageView"""
