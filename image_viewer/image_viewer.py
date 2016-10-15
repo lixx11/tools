@@ -71,6 +71,7 @@ class MainWindow(QMainWindow):
         self.axis = 'x'
         self.frameIndex = 0
         self.maskFlag = False
+        self.imageLog = False
         self.binaryFlag = False 
         self.dispThreshold = 0
         self.center = [0, 0]
@@ -96,6 +97,9 @@ class MainWindow(QMainWindow):
         # angular option
         self.angularRmin = 0.
         self.angularRmax = np.inf
+        # across center line option
+        self.lineAngle = 0.
+        self.lineWidth = 1
         # profile smoothing
         self.smoothFlag = False 
         self.smoothWinSize = 15
@@ -113,9 +117,10 @@ class MainWindow(QMainWindow):
                           {'name': 'Image Shape', 'type': 'str', 'value': 'imageshape', 'readonly': True},
                       ]},
                       {'name': 'Basic Operation', 'type': 'group', 'children': [
-                          {'name': 'Axis', 'type': 'list', 'values': ['x','y','z'], 'value': 'x'},
+                          {'name': 'Axis', 'type': 'list', 'values': ['x','y','z'], 'value': self.axis},
                           {'name': 'Frame Index', 'type': 'int', 'value': self.frameIndex},
-                          {'name': 'Apply Mask', 'type': 'bool', 'value': self.maskFlag},
+                          {'name': 'Apply Mask', 'type': 'bool', 'value': self.imageLog},
+                          {'name': 'Apply Log', 'type': 'bool', 'value': self.maskFlag},
                           {'name': 'binaryzation', 'type': 'bool', 'value': self.binaryFlag},
                           {'name': 'Threshold', 'type': 'float', 'value': self.dispThreshold},
                           {'name': 'Center x', 'type': 'int', 'value': self.center[1]},
@@ -123,13 +128,17 @@ class MainWindow(QMainWindow):
                           {'name': 'Show Rings', 'type': 'bool'},
                           {'name': 'Ring Radiis', 'type': 'str', 'value': ''},
                       ]},
-                      {'name': 'Radial or Angular Profile', 'type': 'group', 'children': [
+                      {'name': 'Feature Profile', 'type': 'group', 'children': [
                           {'name': 'Show Profile', 'type': 'bool'},
-                          {'name': 'Radial or Angular', 'type': 'list', 'values': ['radial','angular'], 'value': 'radial'},
-                          {'name': 'Profile Mode', 'type': 'list', 'values': ['sum','mean'], 'value': 'sum'},
+                          {'name': 'Feature', 'type': 'list', 'values': ['radial','angular', 'across center line'], 'value': self.profileType},
+                          {'name': 'Profile Mode', 'type': 'list', 'values': ['sum','mean'], 'value': self.profileMode},
                           {'name': 'Angular Option', 'type': 'group', 'children': [
                               {'name': 'R min', 'type': 'float', 'value': self.angularRmin},
                               {'name': 'R max', 'type': 'float', 'value': self.angularRmax},
+                          ]},
+                          {'name': 'Across Center Line Option', 'type': 'group', 'children': [
+                              {'name': 'Angle', 'type': 'float', 'value': self.lineAngle},
+                              {'name': 'Width/pixel', 'type': 'int', 'value': self.lineWidth},
                           ]},
                           {'name': 'Smoothing', 'type': 'group', 'children': [
                               {'name': 'Enable Smoothing', 'type': 'bool', 'value': self.smoothFlag},
@@ -164,6 +173,7 @@ class MainWindow(QMainWindow):
         self.params.param('Basic Operation', 'Axis').sigValueChanged.connect(self.axisChangedSlot)
         self.params.param('Basic Operation', 'Frame Index').sigValueChanged.connect(self.frameIndexChangedSlot)
         self.params.param('Basic Operation', 'Apply Mask').sigValueChanged.connect(self.applyMaskSlot)
+        self.params.param('Basic Operation', 'Apply Log').sigValueChanged.connect(self.applyImageLogSlot)
         self.params.param('Basic Operation', 'binaryzation').sigValueChanged.connect(self.binaryImageSlot)
         self.params.param('Basic Operation', 'Threshold').sigValueChanged.connect(self.setDispThresholdSlot)
         self.params.param('Basic Operation', 'Center x').sigValueChanged.connect(self.centerXChangedSlot)
@@ -171,18 +181,20 @@ class MainWindow(QMainWindow):
         self.params.param('Basic Operation', 'Show Rings').sigValueChanged.connect(self.showRingsSlot)
         self.params.param('Basic Operation', 'Ring Radiis').sigValueChanged.connect(self.ringRadiiSlot)
 
-        self.params.param('Radial or Angular Profile', 'Show Profile').sigValueChanged.connect(self.showProfileSlot)
-        self.params.param('Radial or Angular Profile', 'Radial or Angular').sigValueChanged.connect(self.setProfileTypeSlot)
-        self.params.param('Radial or Angular Profile', 'Profile Mode').sigValueChanged.connect(self.setProfileModeSlot)
-        self.params.param('Radial or Angular Profile', 'Angular Option', 'R min').sigValueChanged.connect(self.setAngularRmin)
-        self.params.param('Radial or Angular Profile', 'Angular Option', 'R max').sigValueChanged.connect(self.setAngularRmax)
-        self.params.param('Radial or Angular Profile', 'Smoothing', 'Enable Smoothing').sigValueChanged.connect(self.setSmooth)
-        self.params.param('Radial or Angular Profile', 'Smoothing', 'Window Size').sigValueChanged.connect(self.setWinSize)
-        self.params.param('Radial or Angular Profile', 'Smoothing', 'Poly-Order').sigValueChanged.connect(self.setPolyOrder)
-        self.params.param('Radial or Angular Profile', 'Extrema Search', 'Enable Extrema Search').sigValueChanged.connect(self.setExtremaSearch)
-        self.params.param('Radial or Angular Profile', 'Extrema Search', 'Extrema Type').sigValueChanged.connect(self.setExtremaType)
-        self.params.param('Radial or Angular Profile', 'Extrema Search', 'Extrema WinSize').sigValueChanged.connect(self.setExtremaWinSize)
-        self.params.param('Radial or Angular Profile', 'Extrema Search', 'Extrema Threshold').sigValueChanged.connect(self.setExtremaThreshold)
+        self.params.param('Feature Profile', 'Show Profile').sigValueChanged.connect(self.showProfileSlot)
+        self.params.param('Feature Profile', 'Feature').sigValueChanged.connect(self.setProfileTypeSlot)
+        self.params.param('Feature Profile', 'Profile Mode').sigValueChanged.connect(self.setProfileModeSlot)
+        self.params.param('Feature Profile', 'Angular Option', 'R min').sigValueChanged.connect(self.setAngularRmin)
+        self.params.param('Feature Profile', 'Angular Option', 'R max').sigValueChanged.connect(self.setAngularRmax)
+        self.params.param('Feature Profile', 'Across Center Line Option', 'Angle').sigValueChanged.connect(self.setLineAngle)
+        self.params.param('Feature Profile', 'Across Center Line Option', 'Width/pixel').sigValueChanged.connect(self.setLineWidth)
+        self.params.param('Feature Profile', 'Smoothing', 'Enable Smoothing').sigValueChanged.connect(self.setSmooth)
+        self.params.param('Feature Profile', 'Smoothing', 'Window Size').sigValueChanged.connect(self.setWinSize)
+        self.params.param('Feature Profile', 'Smoothing', 'Poly-Order').sigValueChanged.connect(self.setPolyOrder)
+        self.params.param('Feature Profile', 'Extrema Search', 'Enable Extrema Search').sigValueChanged.connect(self.setExtremaSearch)
+        self.params.param('Feature Profile', 'Extrema Search', 'Extrema Type').sigValueChanged.connect(self.setExtremaType)
+        self.params.param('Feature Profile', 'Extrema Search', 'Extrema WinSize').sigValueChanged.connect(self.setExtremaWinSize)
+        self.params.param('Feature Profile', 'Extrema Search', 'Extrema Threshold').sigValueChanged.connect(self.setExtremaThreshold)
 
         self.params.param('Display Option', 'Image Option', 'autoRange').sigValueChanged.connect(self.imageAutoRangeSlot)
         self.params.param('Display Option', 'Image Option', 'autoLevels').sigValueChanged.connect(self.imageAutoLevelsSlot)
@@ -254,6 +266,10 @@ class MainWindow(QMainWindow):
                 viewBox.enableAutoRange()
             else:
                 viewBox.disableAutoRange()
+            if self.profileLog == True:
+                self.plotWidget.setLogMode(y=True)
+            else:
+                self.plotWidget.setLogMode(y=False)
             if self.dispData is not None:
                 if self.maskFlag == True:
                     assert self.mask.shape == self.dispData.shape 
@@ -261,22 +277,31 @@ class MainWindow(QMainWindow):
                     self.mask = np.ones_like(self.dispData)
                 if self.profileType == 'radial':
                     profile = calc_radial_profile(self.dispData, self.center, mask=self.mask, mode=self.profileMode)
-                else:
+                elif self.profileType == 'angular':
                     annulus_mask = make_annulus(self.dispShape, self.angularRmin, self.angularRmax)
                     profile = calc_angular_profile(self.dispData, self.center, mask=self.mask*annulus_mask, mode=self.profileMode)
+                else:  # across center line
+                    profile = calc_across_center_line_profile(self.dispData, self.center, angle=self.lineAngle, width=self.lineWidth, mask=self.mask, mode=self.profileMode)
+                if self.profileLog == True:
+                    profile[profile < 1.] = 1.
                 self.profileItem.setData(profile)
                 if self.profileType == 'radial':
                     self.plotWidget.setTitle('Radial Profile')
                     self.plotWidget.setLabels(bottom='r/pixel')
-                else:
+                elif self.profileType == 'angular':
                     self.plotWidget.setTitle('Angular Profile')
                     self.plotWidget.setLabels(bottom='theta/deg')
+                else:
+                  self.plotWidget.setTitle('Across Center Line Profile')
+                  self.plotWidget.setLabels(bottom='index/pixel')
                 if self.smoothFlag == True:
                     smoothed_profile = savgol_filter(profile, self.smoothWinSize, self.polyOrder)
+                    if self.profileLog == True:
+                        smoothed_profile[smoothed_profile < 1.] = 1.
                     self.smoothItem.setData(smoothed_profile)
                 else:
                     self.smoothItem.clear()
-                profile_with_noise = profile + np.random.rand(profile.size)*1E-5  # add some noise to avoid same integer value in profile
+                profile_with_noise = profile.astype(np.float) + np.random.rand(profile.size)*1E-5  # add some noise to avoid same integer value in profile
                 if self.extremaSearch == True:
                     if self.extremaType == 'max':
                         extrema_indices = argrelmax(profile_with_noise, order=self.extremaWinSize)[0]
@@ -290,12 +315,6 @@ class MainWindow(QMainWindow):
                     self.thresholdItem.setData(np.ones_like(profile)*profile.mean()*self.extremaThreshold)
                 else:
                     self.thresholdItem.clear()
-                if self.profileLog == True:
-                    radialProfile[radialProfile < 1.] = 1.
-                    self.profileItem.setData(radialProfile)
-                    self.plotWidget.setLogMode(y=True)
-                else:
-                    self.plotWidget.setLogMode(y=False)
         else:
             self.plotWidget.hide()
 
@@ -321,6 +340,10 @@ class MainWindow(QMainWindow):
                     print_with_timestamp("ERROR! Index out of range. %s axis frame %d" %(self.axis, self.frameIndex))
         elif len(self.imageShape) == 2:
             dispData = self.imageData
+        dispData = dispData.copy()
+        if self.imageLog == True:
+            dispData[dispData<1.] = 1.
+            dispData = np.log(dispData)
         return dispData
 
     @pyqtSlot(QtGui.QListWidgetItem)
@@ -352,6 +375,28 @@ class MainWindow(QMainWindow):
                 _cx = np.ones_like(self.ringRadiis) * self.center[0]
                 _cy = np.ones_like(self.ringRadiis) * self.center[1]
             self.ringItem.setData(_cx, _cy, size=self.ringRadiis*2., symbol='o', brush=(255,255,255,0), pen='r', pxMode=False)            
+
+    @pyqtSlot(object)
+    def setLineAngle(self, lineAngle):
+        lineAngle = lineAngle.value()
+        print_with_timestamp('set line angle: %s' %str(lineAngle))
+        self.lineAngle = lineAngle
+        self.maybePlotProfile()
+
+    @pyqtSlot(object)
+    def setLineWidth(self, lineWidth):
+        lineWidth = lineWidth.value()
+        print_with_timestamp('set line width: %s' %str(lineWidth))
+        self.lineWidth = lineWidth
+        self.maybePlotProfile()
+
+    @pyqtSlot(object)
+    def applyImageLogSlot(self, imageLog):
+        imageLog = imageLog.value()
+        print_with_timestamp('set image log: %s' %str(imageLog))
+        self.imageLog = imageLog
+        self.changeDisp()
+        self.maybePlotProfile()
 
     @pyqtSlot(object)
     def setExtremaSearch(self, extremaSearch):
@@ -404,7 +449,7 @@ class MainWindow(QMainWindow):
     @pyqtSlot(object)
     def setLogModeSlot(self, log):
         print_with_timestamp('log mode changed')
-        self.radialProfileLog = log.value()
+        self.profileLog = log.value()
         self.maybePlotProfile()
 
     @pyqtSlot(object)
