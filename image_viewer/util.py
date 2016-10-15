@@ -1,6 +1,7 @@
 import numpy as np 
 import scipy as sp 
 import scipy.io as sio
+from scipy.ndimage.interpolation import rotate
 import h5py
 import datetime
 import os
@@ -91,6 +92,8 @@ def calc_radial_profile(image, center, binsize=1., mask=None, mode='sum'):
         assert mask.shape == image.shape
         assert mask.min() >= 0. and mask.max() <= 1.
         mask = (mask > 0.5).astype(np.float64)
+    else:
+        mask = np.ones_like(image)
     y, x = np.indices((image.shape))
     r = np.sqrt((x - center[0])**2. + (y - center[1])**2.)
     bin_r = r / binsize
@@ -144,6 +147,8 @@ def calc_angular_profile(image, center, binsize=1., mask=None, mode='sum'):
         assert mask.shape == image.shape
         assert mask.min() >= 0. and mask.max() <= 1.
         mask = (mask > 0.5).astype(np.float64)
+    else:
+        mask = np.ones_like(image)
     image = image * mask 
     y, x = np.indices((image.shape))
     theta = np.rad2deg(np.arctan2(y-center[1], x-center[0]))
@@ -156,12 +161,96 @@ def calc_angular_profile(image, center, binsize=1., mask=None, mode='sum'):
     if mode == 'sum':
         return angular_sum
     elif mode == 'mean':
-        if mask is None:
-            mask = np.ones(image.shape)
         ntheta = np.bincount(bin_theta.ravel(), mask.ravel())
         angular_mean = angular_sum / ntheta
         angular_mean[np.isinf(angular_mean)] = 0.
         return angular_mean
+    else:
+        raise ValueError('Wrong mode: %s' %mode)
+
+
+def calc_across_center_line_profile(image, center, angle=0., width=1, mask=None, mode='sum'):
+    """Summary
+    
+    Parameters
+    ----------
+    image : 2d array
+        Input image to calculate angular profile in range of 0 to 180 deg.
+    center : array_like with 2 elements
+        Center of input image
+    angle : float, optional
+        Line angle in degrees.
+    width : int, optional
+        Line width. The default is 1.
+    mask : 2d array, optional
+        Binary 2d array used in angular profile calculation. The shape must be same with image. 1 means valid while 0 not.
+    mode : {'sum', 'mean'}, optional
+        'sum'
+        By default, mode is 'sum'. This returns the summation of each ring.
+    
+        'mean'
+        Mode 'mean' returns the average value of each ring.
+    
+    Returns
+    -------
+    Across center line profile with given width at specified angle: 2d array
+        Output array, contains summation or mean value alone the across center line and its indices with respect to the center.
+    """
+    image = np.asarray(image, dtype=np.float64)
+    assert len(image.shape) == 2
+    center = np.asarray(center, dtype=np.float64)
+    assert center.size == 2
+    if mask is not None:
+        mask = np.asarray(mask, dtype=np.float64)
+        assert mask.shape == image.shape
+        assert mask.min() >= 0. and mask.max() <= 1.
+        mask = (mask > 0.5).astype(np.float64)
+    else:
+        mask = np.ones_like(image)
+    image = image * mask 
+    # generate a larger image if the given center is not the center of the image.
+    sy, sx = image.shape
+    if sy % 2 == 0:
+        # print('padding along first axis')
+        image = np.pad(image, ((0,1), (0,0)), 'constant', constant_values=0)
+    if sx % 2 == 0:
+        # print('padding along second axis')
+        image = np.pad(image, ((0,0), (0,1)), 'constant', constant_values=0)
+    sy, sx = image.shape
+    if center[0] < sx//2 and center[1] < sy//2:
+        # print('case1')
+        sx_p = int((sx - center[0]) * 2 - 1)
+        sy_p = int((sy - center[1]) * 2 - 1)
+        ex_img = np.zeros((sy_p, sx_p))
+        ex_img[sy_p-sy:sy_p, sx_p-sx:sx_p] = image
+    elif center[0] < sx//2 and center[1] > sy//2:
+        # print('case2')
+        sx_p = int((sx - center[0]) * 2 - 1)
+        sy_p = int((center[1]) * 2 - 1)
+        ex_img = np.zeros((sy_p, sx_p))
+        ex_img[0:sy, sx_p-sx:sx_p] = image
+    elif center[0] > sx//2 and center[1] < sy//2:
+        sx_p = int((center[0]) * 2 - 1)
+        sy_p = int((sy - center[1]) * 2 - 1)
+        ex_img = np.zeros((sy_p, sx_p))
+        ex_img[sy_p-sy:sy_p, 0:sx] = image
+    else:
+        # print('case4')
+        sx_p = int((center[0]) * 2 + 1)
+        sy_p = int((center[1]) * 2 + 1)
+        ex_img = np.zeros((sy_p, sx_p))
+        ex_img[0:sy, 0:sx] = image
+    rot_img = rotate(ex_img, angle)
+    rot_sy, rot_sx = rot_img.shape
+    across_line = rot_img[rot_sy//2-width//2:rot_sy//2-width//2+width, :].copy()
+    across_line_sum = np.sum(across_line, axis=0)
+    line_indices = np.indices(across_line_sum.shape)[0] - rot_sx//2
+    line_sum = np.bincount(np.abs(line_indices).ravel(), across_line_sum.ravel())
+    if mode == 'sum':
+        return line_sum
+    elif mode == 'mean':
+        line_mean = line_sum.astype(np.float) / width
+        return line_mean
     else:
         raise ValueError('Wrong mode: %s' %mode)
 
@@ -245,3 +334,5 @@ def make_annulus(shape, inner_radii, outer_radii, fill_value=1., center=None):
     img[r<inner_radii] = 0.
     img[r>outer_radii] = 0.
     return img
+
+
