@@ -65,7 +65,9 @@ class MainWindow(QMainWindow):
 
         self.dispItem = self.imageView.getImageItem()
         self.ringItem = pg.ScatterPlotItem()
+        self.centerMarkItem = pg.ScatterPlotItem()
         self.imageView.getView().addItem(self.ringItem)
+        self.imageView.getView().addItem(self.centerMarkItem)
 
         # basic operation
         self.axis = 'x'
@@ -254,6 +256,13 @@ class MainWindow(QMainWindow):
             _shape_str = 'x: %d, y: %d, z: %d' %(_x, _y, _z)
         self.params.param('Image State Information', 'Image Shape').setValue(_shape_str)
         self.params.param('Image State Information', 'Filename').setValue(basename)
+        if len(self.imageShape) == 3:
+            self.dispShape = self.imageData.shape[1:3]
+        else:
+            self.dispShape = self.imageShape
+        self.center = [self.dispShape[0]//2, self.dispShape[1]//2]
+        self.params.param('Basic Operation', 'Center x').setValue(self.center[0])
+        self.params.param('Basic Operation', 'Center y').setValue(self.center[1])
 
     def maybePlotProfile(self):
         if self.showProfile:
@@ -350,6 +359,13 @@ class MainWindow(QMainWindow):
     def changeImageSlot(self, item):
         self.filepath = item.filepath 
         self.loadData(self.filepath)
+        if len(self.imageShape) == 3:
+            self.dispShape = self.imageData.shape[1:3]
+        else:
+            self.dispShape = self.imageShape
+        self.center = [self.dispShape[0]//2, self.dispShape[1]//2]
+        self.params.param('Basic Operation', 'Center x').setValue(self.center[0])
+        self.params.param('Basic Operation', 'Center y').setValue(self.center[1])
         self.changeDisp()
         self.maybePlotProfile()
 
@@ -364,17 +380,14 @@ class MainWindow(QMainWindow):
             dispData[dispData < self.dispThreshold] = 0.
             dispData[dispData >= self.dispThreshold] = 1.
         self.dispData = dispData
-        self.dispShape = self.dispData.shape
-        self.center = [self.dispShape[0]//2, self.dispShape[1]//2]
-        self.params.param('Basic Operation', 'Center x').setValue(self.center[0])
-        self.params.param('Basic Operation', 'Center y').setValue(self.center[1])
         # set dispData to distItem. Note: transpose the dispData to show image with same manner of matplotlib
         self.imageView.setImage(self.dispData.T, autoRange=self.imageAutoRange, autoLevels=self.imageAutoLevels, autoHistogramRange=self.imageAutoHistogramRange) 
         if self.showRings:
             if self.ringRadiis is not None:
                 _cx = np.ones_like(self.ringRadiis) * self.center[0]
                 _cy = np.ones_like(self.ringRadiis) * self.center[1]
-            self.ringItem.setData(_cx, _cy, size=self.ringRadiis*2., symbol='o', brush=(255,255,255,0), pen='r', pxMode=False)            
+            self.ringItem.setData(_cx, _cy, size=self.ringRadiis*2., symbol='o', brush=(255,255,255,0), pen='r', pxMode=False) 
+        self.centerMarkItem.setData([self.center[0]], [self.center[1]], size=10, symbol='+', brush=(255,255,255,0), pen='r', pxMode=False)           
 
     @pyqtSlot(object)
     def setLineAngle(self, lineAngle):
@@ -456,12 +469,14 @@ class MainWindow(QMainWindow):
     def centerXChangedSlot(self, centerX):
         print_with_timestamp('center X changed')
         self.center[0] = centerX.value()
+        self.changeDisp()
         self.maybePlotProfile()
 
     @pyqtSlot(object)
     def centerYChangedSlot(self, centerY):
         print_with_timestamp('center Y changed')
-        self.center[0] = centerY.value()
+        self.center[1] = centerY.value()
+        self.changeDisp()
         self.maybePlotProfile()
 
     @pyqtSlot(object)
@@ -480,7 +495,7 @@ class MainWindow(QMainWindow):
 
     @pyqtSlot(object)
     def applyMaskSlot(self, mask):
-        print_with_timestamp('turn on/off mask')
+        print_with_timestamp('turn on mask: %s' %str(mask.value()))
         self.maskFlag = mask.value()
         self.changeDisp()
         self.maybePlotProfile()
@@ -626,9 +641,8 @@ def mouseMoved(event):
     x, y = int(mouse_point.x()), int(mouse_point.y())
     filename = os.path.basename(str(win.filepath))
     if 0 <= x < data.shape[0] and 0 <= y < data.shape[1]:
-        win.statusbar.showMessage("%s x:%d y:%d I:%.2f" %(filename, x, y, data[x, y]), 5000)
+        win.statusbar.showMessage("%s x:%d y:%d I:%.2E" %(filename, x, y, data[x, y]), 5000)
     else:
-        # win.statusbar.showMessage("out of bounds")
         pass
 
 
