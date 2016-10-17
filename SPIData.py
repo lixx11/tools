@@ -70,8 +70,9 @@ class SPIData(object):
         if self.patternShape is None:
             self.patternShape = pattern.shape
             print('pattern shape is set to %s' %str(pattern.shape))
-            pattern = pattern.reshape((1, pattern.shape[0], pattern.shape[1]))
-            self.h5File.create_dataset('data', data=pattern, maxshape=(None, self.patternShape[0], self.patternShape[1]))
+            newShape = (1, pattern.shape[0], pattern.shape[1])
+            pattern = pattern.reshape(newShape)
+            self.h5File.create_dataset('data', data=pattern, maxshape=(None, self.patternShape[0], self.patternShape[1]), chunks=newShape)
             self.labels.append(label)
         else:
             if pattern.shape != self.patternShape:
@@ -82,7 +83,6 @@ class SPIData(object):
             self.h5File['data'][Np] = pattern
             self.labels.append(label)
 
-
     def close(self):
         labels = np.asarray(self.labels, dtype=np.int8)
         self.h5File.create_dataset('labels', data=labels)
@@ -91,8 +91,8 @@ class SPIData(object):
 
 if __name__ == '__main__':
     spiData = SPIData('test.h5', wavelength=2.06, detectorDistance=135)  # create spiData
-    spiData.addPatternWithLabel(np.random.rand(200,100), 2)  # add pattern with label
-    spiData.addPatternWithLabel(np.random.rand(200,200), 1)  # add another pattern with label
-    spiData.addPatternWithLabel(np.random.rand(200,100), 0)  # add another pattern with label
+    spiData.addPatternWithLabel(np.random.rand(200,100), 2)  # add multiple particle pattern
+    spiData.addPatternWithLabel(np.random.rand(200,200), 1)  # add single particle pattern
+    spiData.addPatternWithLabel(np.random.rand(200,100), 0)  # add no particle pattern
     spiData.close()  # close h5file
     
