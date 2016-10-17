@@ -260,9 +260,21 @@ class MainWindow(QMainWindow):
             self.dispShape = self.imageData.shape[1:3]
         else:
             self.dispShape = self.imageShape
-        self.center = [self.dispShape[0]//2, self.dispShape[1]//2]
+        self.center = self.calcCenter()
+        self.setCenterInfo()
+    
+    def setCenterInfo(self):
         self.params.param('Basic Operation', 'Center x').setValue(self.center[0])
         self.params.param('Basic Operation', 'Center y').setValue(self.center[1])
+
+    def calcCenter(self):
+        if self.axis == 'x':
+            center = [self.imageShape[2]//2, self.imageShape[1]//2]
+        elif self.axis == 'y':
+            center = [self.imageShape[2]//2, self.imageShape[0]//2]
+        else:
+            center = [self.imageShape[1]//2, self.imageShape[0]//2]
+        return center
 
     def maybePlotProfile(self):
         if self.showProfile:
@@ -316,11 +328,11 @@ class MainWindow(QMainWindow):
                         extrema_indices = argrelmax(profile_with_noise, order=self.extremaWinSize)[0]
                     else:
                         extrema_indices = argrelmin(profile_with_noise, order=self.extremaWinSize)[0]
-                    print_with_timestamp(extrema_indices)
+                    print_with_timestamp('before filtered by threshold: %s' %str(extrema_indices))
                     extremas = profile[extrema_indices]
                     filtered_extrema_indices = extrema_indices[extremas>self.extremaThreshold*profile.mean()]
                     filtered_extremas = profile[filtered_extrema_indices]
-                    print_with_timestamp(filtered_extrema_indices)
+                    print_with_timestamp('after filtered by threshold: %s' %(filtered_extrema_indices))
                     self.thresholdItem.setData(np.ones_like(profile)*profile.mean()*self.extremaThreshold)
                 else:
                     self.thresholdItem.clear()
@@ -355,6 +367,17 @@ class MainWindow(QMainWindow):
             dispData = np.log(dispData)
         return dispData
 
+    def closeEvent(self, event):
+        print("event")
+        reply = QtGui.QMessageBox.question(self, 'Message',
+            "Are you sure to quit?", QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
+
+        if reply == QtGui.QMessageBox.Yes:
+            print_with_timestamp('Bye-Bye.')
+            pg.exit()
+        else:
+            event.ignore()
+
     @pyqtSlot(QtGui.QListWidgetItem)
     def changeImageSlot(self, item):
         self.filepath = item.filepath 
@@ -363,30 +386,30 @@ class MainWindow(QMainWindow):
             self.dispShape = self.imageData.shape[1:3]
         else:
             self.dispShape = self.imageShape
-        self.center = [self.dispShape[0]//2, self.dispShape[1]//2]
-        self.params.param('Basic Operation', 'Center x').setValue(self.center[0])
-        self.params.param('Basic Operation', 'Center y').setValue(self.center[1])
+        self.center = self.calcCenter()
+        self.setCenterInfo()
         self.changeDisp()
         self.maybePlotProfile()
 
     def changeDisp(self):
         if self.maskFlag:
-            if self.mask is not None:
-                assert self.mask.shape == self.dispShape
-                dispData = self.mask * self.calcDispData()
+            if self.mask is None:
+                self.mask = np.ones(self.dispShape)
+            assert self.mask.shape == self.dispShape
+            dispData = self.mask * self.calcDispData()
         else:
             dispData = self.calcDispData()
         if self.binaryFlag:
             dispData[dispData < self.dispThreshold] = 0.
             dispData[dispData >= self.dispThreshold] = 1.
         self.dispData = dispData
-        # set dispData to distItem. Note: transpose the dispData to show image with same manner of matplotlib
+        # set dispData to distItem. Note: transpose the dispData to show image with same manner in matplotlib
         self.imageView.setImage(self.dispData.T, autoRange=self.imageAutoRange, autoLevels=self.imageAutoLevels, autoHistogramRange=self.imageAutoHistogramRange) 
         if self.showRings:
-            if self.ringRadiis is not None:
+            if len(self.ringRadiis) > 0:
                 _cx = np.ones_like(self.ringRadiis) * self.center[0]
                 _cy = np.ones_like(self.ringRadiis) * self.center[1]
-            self.ringItem.setData(_cx, _cy, size=self.ringRadiis*2., symbol='o', brush=(255,255,255,0), pen='r', pxMode=False) 
+                self.ringItem.setData(_cx, _cy, size=self.ringRadiis*2., symbol='o', brush=(255,255,255,0), pen='r', pxMode=False) 
         self.centerMarkItem.setData([self.center[0]], [self.center[1]], size=10, symbol='+', brush=(255,255,255,0), pen='r', pxMode=False)           
 
     @pyqtSlot(object)
@@ -443,6 +466,8 @@ class MainWindow(QMainWindow):
     def axisChangedSlot(self, axis):
         print_with_timestamp('axis changed.')
         self.axis = axis.value()
+        self.center = self.calcCenter()
+        self.setCenterInfo()
         self.changeDisp()
         self.maybePlotProfile()
 
@@ -554,7 +579,7 @@ class MainWindow(QMainWindow):
 
     @pyqtSlot(object)
     def binaryImageSlot(self, binaryImage):
-        print_with_timestamp('set binary flat: %s' %str(binaryImage.value()))
+        print_with_timestamp('apply binaryzation: %s' %str(binaryImage.value()))
         self.binaryFlag = binaryImage.value()
         self.changeDisp()
         self.maybePlotProfile()
@@ -606,12 +631,6 @@ class MainWindow(QMainWindow):
         self.changeDisp()
         self.maybePlotProfile()
 
-    # @pyqtSlot(object)
-    # def setShowLocalMaxima(self, showLocalMaxima):
-    #     showLocalMaxima = showLocalMaxima.value()
-    #     print_with_timestamp('set show local maxima to %s' %str(showLocalMaxima))
-    #     self.showLocalMaxima = showLocalMaxima
-    #     self.maybePlotProfile()
 
 class MyImageView(pg.ImageView):
     """docstring for MyImageView"""
