@@ -33,8 +33,8 @@ class SPIData(object):
             detectorDistance (float, optional): Detector distance to intersection point in mm.
         """
         self.output = str(output)
-        self.wavelength = float(wavelength)
-        self.detectorDistance = float(detectorDistance)
+        self.wavelength = wavelength
+        self.detectorDistance = detectorDistance
         self.h5File = self.initH5()
         self.patternShape = None
         self.labels = []
@@ -48,10 +48,10 @@ class SPIData(object):
         print('===============================================')
         print('Creating h5 file: %s' %self.output)
         if self.wavelength is not None:
-            h5File.create_dataset('wavelength', data=self.wavelength) 
+            h5File.create_dataset('wavelength', data=float(self.wavelength)) 
             print('%-20s: %.2fA added to %s' %('wavelength', self.wavelength, self.output))
         if self.detectorDistance is not None:
-            h5File.create_dataset('detector distance', data=self.detectorDistance)
+            h5File.create_dataset('detector distance', data=float(self.detectorDistance))
             print('%-20s: %.2fmm added to %s' %('detector distance', self.detectorDistance, self.output))
         print('h5 file creation completed.')
         print('===============================================')
@@ -71,10 +71,10 @@ class SPIData(object):
         assert len(pattern.shape) == 2  # must be 2D pattern
         label = int(label)
         if self.patternShape is not None and pattern.shape != self.patternShape:
-            print('Warning!!! Pattern has different shape. Discard this pattern')  # the pattern shape must be same in one dataset
+            print('Warning!!! Pattern has different shape. Discard this pattern.')  # the pattern shape must be same in one dataset
             return None
         if label not in [0,1,2]:
-            raise ValueError('Label must be 0, 1 or 2 for no, single and multiple particle pattern')
+            raise ValueError('Label must be 0, 1 or 2 for no, single and multiple particle pattern.')
 
         if label == 0:
             print('Adding no particle pattern.')
@@ -96,7 +96,6 @@ class SPIData(object):
         else:
             self.h5File['data'].resize(self.Np+1, axis=0)
             self.h5File['data'][self.Np] = pattern
-            self.labels.append(label)
         self.Np += 1
 
     def close(self):
@@ -107,12 +106,17 @@ class SPIData(object):
         self.h5File.create_dataset('Nm', data=self.Nm)
         self.h5File.create_dataset('Np', data=self.Np)
         self.h5File.close()
+        print('====================SUMMARY====================')
+        print('Np %-35s: %d' %('(num of total patterns)', self.Np))
+        print('Nn %-35s: %d' %('(num of no particel patterns)', self.Nn))
+        print('Ns %-35s: %d' %('(num of single particle patterns)', self.Ns))
+        print('Nm %-35s: %d' %('(num of multiple patterns)', self.Nm))
 
 
 if __name__ == '__main__':
     spiData = SPIData('test.h5', wavelength=2.06, detectorDistance=135)  # create spiData
     spiData.addPatternWithLabel(np.random.rand(200,100), 2)  # add multiple particle pattern
     spiData.addPatternWithLabel(np.random.rand(200,200), 1)  # add single particle pattern
-    spiData.addPatternWithLabel(np.random.rand(200,100), 0)  # add no particle pattern
+    spiData.addPatternWithLabel(np.random.rand(200,200), 0)  # add no particle pattern
     spiData.close()  # close h5file
     
