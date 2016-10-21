@@ -5,6 +5,7 @@ from scipy.ndimage.interpolation import rotate
 import h5py
 import datetime
 import os
+from PyQt4 import QtCore, QtGui
 
 
 def cart2pol(x, y):
@@ -260,46 +261,69 @@ def print_with_timestamp(s):
     print('%s: %s' %(now, str(s)))
 
 
-def load_npy(filepath):
-    return np.load(filepath).astype(float)
-
-
-def load_mat(filepath):
-    try:
-        matdata = sio.loadmat(filepath)
-        data_keys = []
-        for key in matdata.keys():
-            if not key[:2] == '__':
-                data_keys.append(key)
-        assert len(data_keys) ==1  # only 1 data(2d or 3d)
-        data = matdata[data_keys[0]]
-    except NotImplementedError:  # v7.3 mat use h5py 
-        matdata = h5py.File(filepath)
-        keys = matdata.keys()
-        assert len(keys) == 1  # only 1 data(2d or 3d)
-        data = matdata[keys[0]]
-    if len(data.shape) != 2 and len(data.shape) != 3:
-        print_with_timestamp("ERROR! Image must be 2d or 3d.")
-        return None
-    else:
-        return data
-
-
-def load_data(filepath):
+def load_data(filepath, dataset_name):
     filepath = str(filepath)
+    dataset_name = str(dataset_name)
     if not os.path.isfile(filepath):
         raise os.error('File not exist: %s' %filepath)
     _, ext = os.path.splitext(filepath)
     print_with_timestamp(ext)
     if ext == '.npy':
-        print_with_timestamp("display npy file")
-        data = load_npy(filepath)
-    elif ext == '.png':
-        print_with_timestamp("png file display not implemented.")
+        assert dataset_name == 'default'
+        data = np.load(filepath)
+    if ext == '.npz':
+        data = np.load(filepath)[dataset_name]
+    elif ext == '.h5':
+        data = h5py.File(filepath)[dataset_name]
     elif ext == '.mat':
-        print_with_timestamp("display mat file")
-        data = load_mat(filepath)
+        try:
+            f = sio.loadmat(filepath)
+            data = f[dataset_name]
+        except NotImplementedError:  # v7.3 mat use h5py 
+            f = h5py.File(filepath, 'r')
+            data = f[dataset_name]
     return data
+
+
+def get_data_info(filepath):
+    filepath = str(filepath)
+    if not os.path.isfile(filepath):
+        raise os.error('File not exist: %s' %filepath)
+    _, ext = os.path.splitext(filepath)
+    data_info = {}
+    if ext == '.npy':
+        data_info['default'] = np.load(filepath, 'r').shape
+    elif ext == '.npz':
+        f = np.load(filepath, 'r')
+        for key in f.keys():
+            if len(f[key].shape) in [2,3]:
+                data_info[key] = f[key].shape
+        f.close()
+    elif ext == '.h5':
+        f = h5py.File(filepath, 'r')
+        keys = []
+        def _get_all_dataset(key):
+            if isinstance(f[key], h5py._hl.dataset.Dataset):
+                keys.append(key)
+        f.visit(_get_all_dataset)
+        for key in keys:
+            if len(f[key].shape) in [2,3]:
+                data_info[key] = f[key].shape
+        f.close()
+    elif ext == '.mat':
+        try:
+            f = sio.loadmat(filepath)
+            for key in f.keys():
+                if isinstance(f[key], np.ndarray):
+                    if len(f[key].shape) in [2,3]:
+                        data_info[key] = f[key].shape
+        except NotImplementedError:  # v7.3 mat use h5py 
+            f = h5py.File(filepath, 'r')
+            for key in f.keys():
+                if len(f[key].shape) in [2,3]:
+                    data_info[key] = f[key].shape
+            f.close()
+    return data_info
 
 
 def make_annulus(shape, inner_radii, outer_radii, fill_value=1., center=None):
@@ -336,3 +360,24 @@ def make_annulus(shape, inner_radii, outer_radii, fill_value=1., center=None):
     return img
 
 
+def getFilepathFromLocalFileID(localFileID):  # get real filepath from POSIX file in mac
+    import CoreFoundation as CF
+    import objc
+    localFileQString = QtCore.QString(localFileID.toLocalFile())
+    relCFStringRef = CF.CFStringCreateWithCString(
+                     CF.kCFAllocatorDefault,
+                     localFileQString.toUtf8(),
+                     CF.kCFStringEncodingUTF8
+                     )
+    relCFURL = CF.CFURLCreateWithFileSystemPath(
+               CF.kCFAllocatorDefault,
+               relCFStringRef,
+               CF.kCFURLPOSIXPathStyle,
+               False   # is directory
+               )
+    absCFURL = CF.CFURLCreateFilePathURL(
+               CF.kCFAllocatorDefault,
+               relCFURL,
+               objc.NULL
+               )
+    return QtCore.QUrl(str(absCFURL[0])).toLocalFile()

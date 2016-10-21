@@ -24,28 +24,6 @@ from docopt import docopt
 import datetime
 from util import *
 
-def getFilepathFromLocalFileID(localFileID):
-    import CoreFoundation as CF
-    import objc
-    localFileQString = QtCore.QString(localFileID.toLocalFile())
-    relCFStringRef = CF.CFStringCreateWithCString(
-                     CF.kCFAllocatorDefault,
-                     localFileQString.toUtf8(),
-                     CF.kCFStringEncodingUTF8
-                     )
-    relCFURL = CF.CFURLCreateWithFileSystemPath(
-               CF.kCFAllocatorDefault,
-               relCFStringRef,
-               CF.kCFURLPOSIXPathStyle,
-               False   # is directory
-               )
-    absCFURL = CF.CFURLCreateFilePathURL(
-               CF.kCFAllocatorDefault,
-               relCFURL,
-               objc.NULL
-               )
-    return QtCore.QUrl(str(absCFURL[0])).toLocalFile()
-
 
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
@@ -54,6 +32,7 @@ class MainWindow(QMainWindow):
         self.plotWidget.hide()
         self.splitter_2.setSizes([self.width()*0.7, self.width()*0.3])
         self.setAcceptDrops(True)
+        self.fileList.setColumnWidth(0, 200)
 
         self.filepath = None  # current filepath
         self.imageData = None  # original image data, 2d or 3d
@@ -61,7 +40,7 @@ class MainWindow(QMainWindow):
         self.dispData = None  # 2d data for plot
         self.dispShape = None
         self.mask = None
-        self.acceptedFiletypes = [u'npy', u'png', u'mat']
+        self.acceptedFiletypes = [u'npy', u'npz', u'h5', u'mat']
 
         self.dispItem = self.imageView.getImageItem()
         self.ringItem = pg.ScatterPlotItem()
@@ -115,8 +94,10 @@ class MainWindow(QMainWindow):
 
         params_list = [
                       {'name': 'Image State Information', 'type': 'group', 'children': [
-                          {'name': 'Filename', 'type': 'str', 'value': 'filename', 'readonly': True},
-                          {'name': 'Image Shape', 'type': 'str', 'value': 'imageshape', 'readonly': True},
+                          {'name': 'File', 'type': 'str', 'value': 'not set', 'readonly': True},
+                          {'name': 'Dataset', 'type': 'str', 'value': 'not set', 'readonly': True},
+                          {'name': 'Mask', 'type': 'str', 'value': 'not set', 'readonly': True},
+                          {'name': 'Image Shape', 'type': 'str', 'value': 'unknown', 'readonly': True},
                       ]},
                       {'name': 'Basic Operation', 'type': 'group', 'children': [
                           {'name': 'Axis', 'type': 'list', 'values': ['x','y','z'], 'value': self.axis},
@@ -169,7 +150,7 @@ class MainWindow(QMainWindow):
         self.params = Parameter.create(name='', type='group', children=params_list)
         self.parameterTree.setParameters(self.params, showTop=False)
 
-        self.fileList.itemDoubleClicked.connect(self.changeImageSlot)
+        self.fileList.itemDoubleClicked.connect(self.changeDatasetSlot)
         self.fileList.customContextMenuRequested.connect(self.showFileMenuSlot)
 
         self.params.param('Basic Operation', 'Axis').sigValueChanged.connect(self.axisChangedSlot)
@@ -206,46 +187,31 @@ class MainWindow(QMainWindow):
 
     def dragEnterEvent(self, event):
         urls = event.mimeData().urls()
-        if len(urls) > 1:
-            print_with_timestamp("WARNING! Please drag in 1 file only!")
-            event.ignore()
-            return None
-        url = urls[0]
-        if QtCore.QString(url.toLocalFile()).startsWith('/.file/id='):
-            # print_with_timestamp("POSIX file in mac.")
-            drop_file = getFilepathFromLocalFileID(url)
-        file_info = QtCore.QFileInfo(drop_file)
-        ext = file_info.suffix()
-        if ext not in self.acceptedFiletypes:
-            print_with_timestamp("unaccepted ext: %s" %ext)
-            event.ignore()
-            return None
-        else:
-            print_with_timestamp("accepted ext: %s" %ext)
-            event.accept()
-            return None
+        for url in urls:
+            if QtCore.QString(url.toLocalFile()).startsWith('/.file/id='):
+                dropFile = getFilepathFromLocalFileID(url)
+                fileInfo = QtCore.QFileInfo(dropFile)
+                ext = fileInfo.suffix()
+            if ext in self.acceptedFiletypes:
+                event.accept()
+                return None
+        event.ignore()
+        return None
 
     def dropEvent(self, event):
         urls = event.mimeData().urls()
-        url = urls[0]
-        localFile = QtCore.QString(url.toLocalFile())
-        if localFile.startsWith('/.file/id='):
-            # print_with_timestamp("POSIX file in mac.")
-            localFile = getFilepathFromLocalFileID(url)
-        self.filepath = localFile
-        self.loadData(self.filepath)
-        self.changeDisp()
-        # add file to fileList
-        basename = os.path.basename(str(self.filepath))
-        item = FilenameListItem(basename)
-        item.filepath = self.filepath
-        item.setToolTip(item.filepath)
-        self.fileList.addItem(item)
+        for url in urls:
+            if QtCore.QString(url.toLocalFile()).startsWith('/.file/id='):
+                dropFile = getFilepathFromLocalFileID(url)
+                ext = QtCore.QFileInfo(dropFile).suffix()
+            if ext in self.acceptedFiletypes:
+                item = FileItem(filepath=dropFile)
+                self.fileList.insertTopLevelItem(0, item)
 
-    def loadData(self, filepath):
+    def loadData(self, filepath, datasetName):
         filepath = str(filepath)
         basename = os.path.basename(filepath)
-        self.imageData = load_data(filepath)
+        self.imageData = load_data(filepath, datasetName)
         self.imageShape = self.imageData.shape
         _shape_str = ''
         if len(self.imageShape) == 2:
@@ -255,7 +221,8 @@ class MainWindow(QMainWindow):
             _x, _y, _z = self.imageShape
             _shape_str = 'x: %d, y: %d, z: %d' %(_x, _y, _z)
         self.params.param('Image State Information', 'Image Shape').setValue(_shape_str)
-        self.params.param('Image State Information', 'Filename').setValue(basename)
+        self.params.param('Image State Information', 'File').setValue(basename)
+        self.params.param('Image State Information', 'Dataset').setValue(datasetName)
         if len(self.imageShape) == 3:
             self.dispShape = self.imageData.shape[1:3]
         else:
@@ -268,6 +235,10 @@ class MainWindow(QMainWindow):
         self.params.param('Basic Operation', 'Center y').setValue(self.center[1])
 
     def calcCenter(self):
+        if len(self.imageShape) == 2:
+            center = [self.imageShape[1]//2, self.imageShape[0]//2]
+            return center
+        assert len(self.imageShape) == 3
         if self.axis == 'x':
             center = [self.imageShape[2]//2, self.imageShape[1]//2]
         elif self.axis == 'y':
@@ -361,14 +332,16 @@ class MainWindow(QMainWindow):
                     print_with_timestamp("ERROR! Index out of range. %s axis frame %d" %(self.axis, self.frameIndex))
         elif len(self.imageShape) == 2:
             dispData = self.imageData
-        dispData = dispData.copy()
+        if isinstance(dispData, np.ndarray):
+            dispData = dispData.copy()
+        else:
+            dispData = np.asarray(dispData).copy()
         if self.imageLog == True:
             dispData[dispData<1.] = 1.
             dispData = np.log(dispData)
         return dispData
 
     def closeEvent(self, event):
-        print("event")
         reply = QtGui.QMessageBox.question(self, 'Message',
             "Are you sure to quit?", QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
 
@@ -378,14 +351,16 @@ class MainWindow(QMainWindow):
         else:
             event.ignore()
 
-    @pyqtSlot(QtGui.QListWidgetItem)
-    def changeImageSlot(self, item):
-        self.filepath = item.filepath 
-        self.loadData(self.filepath)
-        if len(self.imageShape) == 3:
-            self.dispShape = self.imageData.shape[1:3]
+    @pyqtSlot(QtGui.QTreeWidgetItem, int)
+    def changeDatasetSlot(self, item, column):
+        if isinstance(item, DatasetItem):
+            datasetItem = item 
+            fileItem = datasetItem.parent()
         else:
-            self.dispShape = self.imageShape
+            assert isinstance(item, FileItem)
+            fileItem = item
+            datasetItem = fileItem.child(0)
+        self.loadData(fileItem.filepath, datasetItem.datasetName)
         self.center = self.calcCenter()
         self.setCenterInfo()
         self.changeDisp()
@@ -506,17 +481,23 @@ class MainWindow(QMainWindow):
 
     @pyqtSlot(object)
     def showFileMenuSlot(self, position):
-        print_with_timestamp(position)
         fileMenu = QtGui.QMenu()
-        markAsMask = fileMenu.addAction("Mark As Mask")
-        action = fileMenu.exec_(self.fileList.mapToGlobal(position))
-        if action == markAsMask:
-            currentFile = self.fileList.currentItem().filepath
-            data = load_data(currentFile)
-            if len(data.shape) != 2:
-                raise ValueError('%s can not be used as mask. Mask data must be 2d.' %currentFile)
-            assert len(data.shape) == 2
-            self.mask = data 
+        item = self.fileList.currentItem()
+        if isinstance(item, DatasetItem):
+            setAsMask = fileMenu.addAction("Set As Mask")
+            action = fileMenu.exec_(self.fileList.mapToGlobal(position))
+            if action == setAsMask:
+                filepath = item.parent().filepath
+                mask = load_data(filepath, item.datasetName)
+                if len(mask.shape) != 2:
+                    raise ValueError('%s:%s can not be used as mask. Mask data must be 2d.' %(filepath, item.datasetName))
+                self.mask = np.asarray(mask)
+                self.params.param('Image State Information', 'Mask').setValue("%s::%s" %(os.path.basename(filepath), item.datasetName))
+        elif isinstance(item, FileItem):
+            deleteAction = fileMenu.addAction("Delete")
+            action = fileMenu.exec_(self.fileList.mapToGlobal(position))
+            if action == deleteAction:
+                print('deleting this file')
 
     @pyqtSlot(object)
     def applyMaskSlot(self, mask):
@@ -654,7 +635,7 @@ def mouseMoved(event):
     imageView = win.imageView
     dispItem = win.dispItem
     data = dispItem.image
-    if win.filepath == None:
+    if win.dispShape is None:
         return None
     mouse_point = imageView.view.mapToView(event[0])
     x, y = int(mouse_point.x()), int(mouse_point.y())
@@ -665,17 +646,37 @@ def mouseMoved(event):
         pass
 
 
-class FilenameListWidget(QtGui.QListWidget):
-    """docstring for FilenameListWidget"""
-    def __init__(self, parent=None, *args):
-        super(FilenameListWidget, self).__init__(parent, *args)
+class DatasetTreeWidget(QtGui.QTreeWidget):
+    """docstring for DatasetTreeWidget"""
+    def __init__(self, parent=None):
+        super(DatasetTreeWidget, self).__init__(parent)
 
 
-class FilenameListItem(QtGui.QListWidgetItem):
-    """docstring for FilenameListItem"""
-    def __init__(self, parent=None, *args):
-        super(FilenameListItem, self).__init__(parent, *args)
-        self.filepath = None
+class FileItem(QtGui.QTreeWidgetItem):
+    """docstring for FileItem"""
+    def __init__(self, parent=None, filepath=None):
+        super(FileItem, self).__init__(parent)
+        self.filepath = str(filepath)
+        basename = os.path.basename(self.filepath)
+        self.setText(0, basename)
+        self.setToolTip(0, self.filepath)
+        self.datasets = self.initDatasets()
+
+    def initDatasets(self):
+        dataInfo = get_data_info(self.filepath)
+        for key in dataInfo.keys():
+            datasetItem = DatasetItem(parent=self, datasetName=key, datasetShape=dataInfo[key])
+            self.addChild(datasetItem)
+
+
+class DatasetItem(QtGui.QTreeWidgetItem):
+    """docstring for DatasetItem"""
+    def __init__(self, parent=None, datasetName=None, datasetShape=None):
+        super(DatasetItem, self).__init__(parent)
+        self.datasetName = datasetName
+        self.datasetShape = datasetShape
+        self.setText(0, self.datasetName)
+        self.setText(1, str(self.datasetShape))        
 
 
 if __name__ == '__main__':

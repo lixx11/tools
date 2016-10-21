@@ -68,16 +68,32 @@
         </attribute>
         <layout class="QVBoxLayout" name="verticalLayout">
          <item>
-          <widget class="FilenameListWidget" name="fileList">
+          <widget class="QTreeWidget" name="fileList">
            <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-             <horstretch>2</horstretch>
+            <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+             <horstretch>0</horstretch>
              <verstretch>0</verstretch>
             </sizepolicy>
            </property>
            <property name="contextMenuPolicy">
             <enum>Qt::CustomContextMenu</enum>
            </property>
+           <property name="selectionMode">
+            <enum>QAbstractItemView::ExtendedSelection</enum>
+           </property>
+           <property name="selectionBehavior">
+            <enum>QAbstractItemView::SelectItems</enum>
+           </property>
+           <column>
+            <property name="text">
+             <string notr="true">Filename &amp; Dataset</string>
+            </property>
+           </column>
+           <column>
+            <property name="text">
+             <string>Shape</string>
+            </property>
+           </column>
           </widget>
          </item>
         </layout>
@@ -119,11 +135,6 @@
   <customwidget>
    <class>MyImageView</class>
    <extends>QGraphicsView</extends>
-   <header>image_viewer</header>
-  </customwidget>
-  <customwidget>
-   <class>FilenameListWidget</class>
-   <extends>QListWidget</extends>
    <header>image_viewer</header>
   </customwidget>
   <customwidget>
