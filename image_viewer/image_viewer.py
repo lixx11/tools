@@ -2,7 +2,7 @@
 #! coding=utf-8
 
 """
-Usage: 
+Usage:
     image_viewer.py
 
 Options:
@@ -14,7 +14,7 @@ import os
 from PyQt4 import QtCore, QtGui, uic
 from PyQt4.QtGui import QMainWindow, QApplication
 from PyQt4.QtCore import pyqtSignal, pyqtSlot
-import pyqtgraph as pg 
+import pyqtgraph as pg
 from pyqtgraph.parametertree import ParameterTree, Parameter
 from pyqtgraph import PlotDataItem
 import numpy as np
@@ -53,10 +53,10 @@ class MainWindow(QMainWindow):
         self.frameIndex = 0
         self.maskFlag = False
         self.imageLog = False
-        self.binaryFlag = False 
+        self.binaryFlag = False
         self.dispThreshold = 0
         self.center = [0, 0]
-        self.showRings = False 
+        self.showRings = False
         self.ringRadiis = []
 
         self.profileItem = PlotDataItem(pen=pg.mkPen('y', width=1, style=QtCore.Qt.SolidLine), name='profile')
@@ -82,15 +82,15 @@ class MainWindow(QMainWindow):
         self.lineAngle = 0.
         self.lineWidth = 1
         # profile smoothing
-        self.smoothFlag = False 
+        self.smoothFlag = False
         self.smoothWinSize = 15
         self.polyOrder = 3
         # display option
         self.profileLog = False
-        self.imageAutoRange = True 
-        self.imageAutoLevels = True 
+        self.imageAutoRange = True
+        self.imageAutoLevels = True
         self.imageAutoHistogramRange = True
-        self.plotAutoRange = True 
+        self.plotAutoRange = True
 
         params_list = [
                       {'name': 'Image State Information', 'type': 'group', 'children': [
@@ -190,8 +190,10 @@ class MainWindow(QMainWindow):
         for url in urls:
             if QtCore.QString(url.toLocalFile()).startsWith('/.file/id='):
                 dropFile = getFilepathFromLocalFileID(url)
-                fileInfo = QtCore.QFileInfo(dropFile)
-                ext = fileInfo.suffix()
+            else:
+                dropFile = url.toLocalFile()
+            fileInfo = QtCore.QFileInfo(dropFile)
+            ext = fileInfo.suffix()
             if ext in self.acceptedFiletypes:
                 event.accept()
                 return None
@@ -203,6 +205,8 @@ class MainWindow(QMainWindow):
         for url in urls:
             if QtCore.QString(url.toLocalFile()).startsWith('/.file/id='):
                 dropFile = getFilepathFromLocalFileID(url)
+            else:
+                dropFile = url.toLocalFile()
                 ext = QtCore.QFileInfo(dropFile).suffix()
             if ext in self.acceptedFiletypes:
                 item = FileItem(filepath=dropFile)
@@ -229,7 +233,7 @@ class MainWindow(QMainWindow):
             self.dispShape = self.imageShape
         self.center = self.calcCenter()
         self.setCenterInfo()
-    
+
     def setCenterInfo(self):
         self.params.param('Basic Operation', 'Center x').setValue(self.center[0])
         self.params.param('Basic Operation', 'Center y').setValue(self.center[1])
@@ -264,7 +268,7 @@ class MainWindow(QMainWindow):
                 self.plotWidget.setLogMode(y=False)
             if self.dispData is not None:
                 if self.maskFlag == True:
-                    assert self.mask.shape == self.dispData.shape 
+                    assert self.mask.shape == self.dispData.shape
                 else:
                     self.mask = np.ones_like(self.dispData)
                 if self.profileType == 'radial':
@@ -354,7 +358,7 @@ class MainWindow(QMainWindow):
     @pyqtSlot(QtGui.QTreeWidgetItem, int)
     def changeDatasetSlot(self, item, column):
         if isinstance(item, DatasetItem):
-            datasetItem = item 
+            datasetItem = item
             fileItem = datasetItem.parent()
         else:
             assert isinstance(item, FileItem)
@@ -379,13 +383,13 @@ class MainWindow(QMainWindow):
             dispData[dispData >= self.dispThreshold] = 1.
         self.dispData = dispData
         # set dispData to distItem. Note: transpose the dispData to show image with same manner in matplotlib
-        self.imageView.setImage(self.dispData.T, autoRange=self.imageAutoRange, autoLevels=self.imageAutoLevels, autoHistogramRange=self.imageAutoHistogramRange) 
+        self.imageView.setImage(self.dispData.T, autoRange=self.imageAutoRange, autoLevels=self.imageAutoLevels, autoHistogramRange=self.imageAutoHistogramRange)
         if self.showRings:
             if len(self.ringRadiis) > 0:
                 _cx = np.ones_like(self.ringRadiis) * self.center[0]
                 _cy = np.ones_like(self.ringRadiis) * self.center[1]
-                self.ringItem.setData(_cx, _cy, size=self.ringRadiis*2., symbol='o', brush=(255,255,255,0), pen='r', pxMode=False) 
-        self.centerMarkItem.setData([self.center[0]], [self.center[1]], size=10, symbol='+', brush=(255,255,255,0), pen='r', pxMode=False)           
+                self.ringItem.setData(_cx, _cy, size=self.ringRadiis*2., symbol='o', brush=(255,255,255,0), pen='r', pxMode=False)
+        self.centerMarkItem.setData([self.center[0]], [self.center[1]], size=10, symbol='+', brush=(255,255,255,0), pen='r', pxMode=False)
 
     @pyqtSlot(object)
     def setLineAngle(self, lineAngle):
@@ -600,7 +604,7 @@ class MainWindow(QMainWindow):
     def setAngularRmin(self, Rmin):
         Rmin = float(Rmin.value())
         print_with_timestamp('set angular Rmin to %.1f' %Rmin)
-        self.angularRmin = Rmin 
+        self.angularRmin = Rmin
         self.changeDisp()
         self.maybePlotProfile()
 
@@ -624,7 +628,7 @@ class MyPlotWidget(pg.PlotWidget):
     def __init__(self, parent=None):
         super(MyPlotWidget, self).__init__(parent=parent)
 
-        
+
 class MyParameterTree(ParameterTree):
     """docstring for MyParameterTree"""
     def __init__(self, parent=None):
@@ -676,11 +680,11 @@ class DatasetItem(QtGui.QTreeWidgetItem):
         self.datasetName = datasetName
         self.datasetShape = datasetShape
         self.setText(0, self.datasetName)
-        self.setText(1, str(self.datasetShape))        
+        self.setText(1, str(self.datasetShape))
 
 
 if __name__ == '__main__':
-    # add signal to enable CTRL-C 
+    # add signal to enable CTRL-C
     import signal
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
@@ -689,7 +693,7 @@ if __name__ == '__main__':
     win = MainWindow()
     win.resize(900, 600)
     win.setWindowTitle("Image Viewer")
-    
+
     proxy = pg.SignalProxy(win.imageView.scene.sigMouseMoved, rateLimit=10, slot=mouseMoved)
     win.show()
     app.exec_()
