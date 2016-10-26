@@ -13,3 +13,5 @@ data/*
 test*
 
 *.html
+# do not files in res directory
+!res/*
