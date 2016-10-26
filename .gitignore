@@ -11,3 +11,5 @@ data/*
 !.gitignore
 
 test*
+
+*.html
