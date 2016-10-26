@@ -207,7 +207,7 @@ class MainWindow(QMainWindow):
                 dropFile = getFilepathFromLocalFileID(url)
             else:
                 dropFile = url.toLocalFile()
-                ext = QtCore.QFileInfo(dropFile).suffix()
+            ext = QtCore.QFileInfo(dropFile).suffix()
             if ext in self.acceptedFiletypes:
                 item = FileItem(filepath=dropFile)
                 self.fileList.insertTopLevelItem(0, item)
