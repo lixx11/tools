@@ -185,6 +185,8 @@ class MainWindow(QMainWindow):
         self.params.param('Display Option', 'Plot Option', 'autoRange').sigValueChanged.connect(self.plotAutoRangeSlot)
         self.params.param('Display Option', 'Plot Option', 'Log').sigValueChanged.connect(self.setLogModeSlot)
 
+        self.imageView.scene.sigMouseMoved.connect(self.mouseMoved)
+
     def dragEnterEvent(self, event):
         urls = event.mimeData().urls()
         for url in urls:
@@ -213,9 +215,9 @@ class MainWindow(QMainWindow):
                 self.fileList.insertTopLevelItem(0, item)
 
     def loadData(self, filepath, datasetName):
-        filepath = str(filepath)
-        basename = os.path.basename(filepath)
-        self.imageData = load_data(filepath, datasetName)
+        self.filepath = str(filepath)
+        basename = os.path.basename(self.filepath)
+        self.imageData = load_data(self.filepath, datasetName)
         self.imageShape = self.imageData.shape
         _shape_str = ''
         if len(self.imageShape) == 2:
@@ -616,6 +618,17 @@ class MainWindow(QMainWindow):
         self.changeDisp()
         self.maybePlotProfile()
 
+    def mouseMoved(self, event):
+        if self.dispShape is None:
+            return None
+        mouse_point = self.imageView.view.mapToView(event)
+        x, y = int(mouse_point.x()), int(mouse_point.y())
+        filename = os.path.basename(str(self.filepath))
+        if 0 <= x < self.dispData.shape[0] and 0 <= y < self.dispData.shape[1]:
+            self.statusbar.showMessage("%s x:%d y:%d I:%.2E" %(filename, x, y, self.dispData[x, y]), 5000)
+        else:
+            pass
+
 
 class MyImageView(pg.ImageView):
     """docstring for MyImageView"""
@@ -633,21 +646,6 @@ class MyParameterTree(ParameterTree):
     """docstring for MyParameterTree"""
     def __init__(self, parent=None):
         super(MyParameterTree, self).__init__(parent=parent)
-
-
-def mouseMoved(event):
-    imageView = win.imageView
-    dispItem = win.dispItem
-    data = dispItem.image
-    if win.dispShape is None:
-        return None
-    mouse_point = imageView.view.mapToView(event[0])
-    x, y = int(mouse_point.x()), int(mouse_point.y())
-    filename = os.path.basename(str(win.filepath))
-    if 0 <= x < data.shape[0] and 0 <= y < data.shape[1]:
-        win.statusbar.showMessage("%s x:%d y:%d I:%.2E" %(filename, x, y, data[x, y]), 5000)
-    else:
-        pass
 
 
 class DatasetTreeWidget(QtGui.QTreeWidget):
@@ -694,6 +692,5 @@ if __name__ == '__main__':
     win.resize(900, 600)
     win.setWindowTitle("Image Viewer")
 
-    proxy = pg.SignalProxy(win.imageView.scene.sigMouseMoved, rateLimit=10, slot=mouseMoved)
     win.show()
     app.exec_()
