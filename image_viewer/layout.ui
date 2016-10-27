@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>745</width>
-    <height>590</height>
+    <width>869</width>
+    <height>622</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -28,11 +28,17 @@
   <widget class="QWidget" name="centralwidget">
    <layout class="QHBoxLayout" name="horizontalLayout">
     <item>
-     <widget class="QSplitter" name="splitter_2">
+     <widget class="QSplitter" name="splitter_3">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
       <property name="orientation">
        <enum>Qt::Horizontal</enum>
       </property>
-      <widget class="QSplitter" name="splitter">
+      <widget class="QSplitter" name="splitter_2">
        <property name="orientation">
         <enum>Qt::Vertical</enum>
        </property>
@@ -44,7 +50,13 @@
          </sizepolicy>
         </property>
        </widget>
-       <widget class="MyPlotWidget" name="plotWidget"/>
+       <widget class="QSplitter" name="splitter">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <widget class="MyPlotWidget" name="profileWidget"/>
+        <widget class="MyPlotWidget" name="smallDataWidget"/>
+       </widget>
       </widget>
       <widget class="QTabWidget" name="optionTab">
        <property name="tabPosition">
@@ -124,7 +136,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>745</width>
+     <width>869</width>
      <height>22</height>
     </rect>
    </property>

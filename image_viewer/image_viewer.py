@@ -29,8 +29,9 @@ class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
         uic.loadUi('layout.ui', self)
-        self.plotWidget.hide()
-        self.splitter_2.setSizes([self.width()*0.7, self.width()*0.3])
+        self.profileWidget.hide()
+        self.smallDataWidget.hide()
+        self.splitter_3.setSizes([self.width()*0.7, self.width()*0.3])
         self.setAcceptDrops(True)
         self.fileList.setColumnWidth(0, 200)
 
@@ -62,10 +63,10 @@ class MainWindow(QMainWindow):
         self.profileItem = PlotDataItem(pen=pg.mkPen('y', width=1, style=QtCore.Qt.SolidLine), name='profile')
         self.smoothItem = PlotDataItem(pen=pg.mkPen('g', width=2, style=QtCore.Qt.DotLine), name='smoothed profile')
         self.thresholdItem = PlotDataItem(pen=pg.mkPen('r'), width=1, style=QtCore.Qt.DashLine, name='thredhold')
-        self.plotWidget.addLegend()
-        self.plotWidget.addItem(self.profileItem)
-        self.plotWidget.addItem(self.smoothItem)
-        self.plotWidget.addItem(self.thresholdItem)
+        self.profileWidget.addLegend()
+        self.profileWidget.addItem(self.profileItem)
+        self.profileWidget.addItem(self.smoothItem)
+        self.profileWidget.addItem(self.thresholdItem)
         # profile option
         self.showProfile = False
         self.profileType = 'radial'
@@ -186,6 +187,10 @@ class MainWindow(QMainWindow):
         self.params.param('Display Option', 'Plot Option', 'Log').sigValueChanged.connect(self.setLogModeSlot)
 
         self.imageView.scene.sigMouseMoved.connect(self.mouseMoved)
+        self.centerMarkItem.sigClicked.connect(self._test)
+
+    def _test(points):
+        print 'fdsafdsa' 
 
     def dragEnterEvent(self, event):
         urls = event.mimeData().urls()
@@ -256,18 +261,18 @@ class MainWindow(QMainWindow):
     def maybePlotProfile(self):
         if self.showProfile:
             print_with_timestamp("OK, I'll plot %s profile" %self.profileType)
-            if self.plotWidget.isVisible() == False:
-                self.plotWidget.show()
-                self.splitter.setSizes([self.height()*0.7, self.height()*0.3])
-            viewBox = self.plotWidget.getViewBox()
+            if self.profileWidget.isVisible() == False:
+                self.profileWidget.show()
+                self.splitter_2.setSizes([self.height()*0.7, self.height()*0.3])
+            viewBox = self.profileWidget.getViewBox()
             if self.plotAutoRange:
                 viewBox.enableAutoRange()
             else:
                 viewBox.disableAutoRange()
             if self.profileLog == True:
-                self.plotWidget.setLogMode(y=True)
+                self.profileWidget.setLogMode(y=True)
             else:
-                self.plotWidget.setLogMode(y=False)
+                self.profileWidget.setLogMode(y=False)
             if self.dispData is not None:
                 if self.maskFlag == True:
                     assert self.mask.shape == self.dispData.shape
@@ -284,14 +289,14 @@ class MainWindow(QMainWindow):
                     profile[profile < 1.] = 1.
                 self.profileItem.setData(profile)
                 if self.profileType == 'radial':
-                    self.plotWidget.setTitle('Radial Profile')
-                    self.plotWidget.setLabels(bottom='r/pixel')
+                    self.profileWidget.setTitle('Radial Profile')
+                    self.profileWidget.setLabels(bottom='r/pixel')
                 elif self.profileType == 'angular':
-                    self.plotWidget.setTitle('Angular Profile')
-                    self.plotWidget.setLabels(bottom='theta/deg')
+                    self.profileWidget.setTitle('Angular Profile')
+                    self.profileWidget.setLabels(bottom='theta/deg')
                 else:
-                  self.plotWidget.setTitle('Across Center Line Profile')
-                  self.plotWidget.setLabels(bottom='index/pixel')
+                  self.profileWidget.setTitle('Across Center Line Profile')
+                  self.profileWidget.setLabels(bottom='index/pixel')
                 if self.smoothFlag == True:
                     smoothed_profile = savgol_filter(profile, self.smoothWinSize, self.polyOrder)
                     if self.profileLog == True:
@@ -314,7 +319,7 @@ class MainWindow(QMainWindow):
                 else:
                     self.thresholdItem.clear()
         else:
-            self.plotWidget.hide()
+            self.profileWidget.hide()
 
     def calcDispData(self):
         if self.imageData is None:
@@ -373,13 +378,13 @@ class MainWindow(QMainWindow):
         self.maybePlotProfile()
 
     def changeDisp(self):
+        dispData = self.calcDispData()
+        self.dispShape = dispData.shape
         if self.maskFlag:
             if self.mask is None:
                 self.mask = np.ones(self.dispShape)
             assert self.mask.shape == self.dispShape
-            dispData = self.mask * self.calcDispData()
-        else:
-            dispData = self.calcDispData()
+            dispData *= self.mask
         if self.binaryFlag:
             dispData[dispData < self.dispThreshold] = 0.
             dispData[dispData >= self.dispThreshold] = 1.
@@ -618,10 +623,11 @@ class MainWindow(QMainWindow):
         self.changeDisp()
         self.maybePlotProfile()
 
-    def mouseMoved(self, event):
+    @pyqtSlot(object)
+    def mouseMoved(self, pos):
         if self.dispShape is None:
             return None
-        mouse_point = self.imageView.view.mapToView(event)
+        mouse_point = self.imageView.view.mapToView(pos)
         x, y = int(mouse_point.x()), int(mouse_point.y())
         filename = os.path.basename(str(self.filepath))
         if 0 <= x < self.dispData.shape[0] and 0 <= y < self.dispData.shape[1]:
@@ -637,7 +643,7 @@ class MyImageView(pg.ImageView):
 
 
 class MyPlotWidget(pg.PlotWidget):
-    """docstring for MyPlotWidget"""
+    """docstring for MyprofileWidget"""
     def __init__(self, parent=None):
         super(MyPlotWidget, self).__init__(parent=parent)
 
