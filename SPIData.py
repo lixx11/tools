@@ -1,22 +1,22 @@
 """
 Convert single particle patterns into hdf5 format file. The structure of the output h5 file is as follows:
-    'data': 
+    'data'(3d array): 
         3D data with shape (Np, Nx, Ny) where Np is the number of patters, and Nx, Ny are the size of first and second axis.
-    'labels': 
+    'labels'(int): 
         classification results of the data with shape (Np,). -1 for unclassified, 0 for no particle, 1 for single particle, 2 for multiple particle
-    'Nn':
+    'Nn'(int):
         Number of paterns with no particle.
-    'Ns':
+    'Ns'(int):
         Number of patterns with single particle.
-    'Nm':
+    'Nm'(int):
         Number of patterns with multiple particles.
-    'Nu':
+    'Nu'(int):
         Number of patterns unclassified.
-    'Np':
+    'Np'(int):
         Number of totoal patterns.
-    'wavelength':
+    'wavelength'(float):
         Optional. The XFEL wavelength in angstrom(1E-10m).
-    'detector distance':
+    'detector distance'(float):
         Optional. The detector distance to intersection point in mm.
 """
 
