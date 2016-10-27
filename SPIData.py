@@ -2,7 +2,7 @@
 Convert single particle patterns into hdf5 format file. The structure of the output h5 file is as follows:
     'data'(3d array): 
         3D data with shape (Np, Nx, Ny) where Np is the number of patters, and Nx, Ny are the size of first and second axis.
-    'labels'(int): 
+    'labels'(list of int): 
         classification results of the data with shape (Np,). -1 for unclassified, 0 for no particle, 1 for single particle, 2 for multiple particle
     'Nn'(int):
         Number of paterns with no particle.
