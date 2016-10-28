@@ -80,7 +80,7 @@
         </attribute>
         <layout class="QVBoxLayout" name="verticalLayout">
          <item>
-          <widget class="QTreeWidget" name="fileList">
+          <widget class="DatasetTreeWidget" name="fileList">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
              <horstretch>0</horstretch>
@@ -156,6 +156,11 @@
   </customwidget>
   <customwidget>
    <class>MyParameterTree</class>
+   <extends>QTreeWidget</extends>
+   <header>image_viewer</header>
+  </customwidget>
+  <customwidget>
+   <class>DatasetTreeWidget</class>
    <extends>QTreeWidget</extends>
    <header>image_viewer</header>
   </customwidget>

@@ -261,13 +261,34 @@ def print_with_timestamp(s):
     print('%s: %s' %(now, str(s)))
 
 
+def load_smalldata(filepath, dataset_name):
+    filepath = str(filepath)
+    dataset_name = str(dataset_name)
+    if not os.path.isfile(filepath):
+        raise os.error('File not exist: %s' %filepath)
+    _, ext = os.path.splitext(filepath)
+    assert ext == '.h5'
+    f = h5py.File(filepath, 'r')
+    smalldata = f[dataset_name].value
+    paths = f['paths'].value
+    frames = f['frames'].value
+    f.close()
+    return paths, frames, smalldata
+
+
+def make_temp_file(filepath, frame, output):
+    f = h5py.File(filepath, 'r')
+    data = f['data'][frame]
+    np.save(output, data)
+    f.close()
+
+
 def load_data(filepath, dataset_name):
     filepath = str(filepath)
     dataset_name = str(dataset_name)
     if not os.path.isfile(filepath):
         raise os.error('File not exist: %s' %filepath)
     _, ext = os.path.splitext(filepath)
-    print_with_timestamp(ext)
     if ext == '.npy':
         assert dataset_name == 'default'
         data = np.load(filepath)

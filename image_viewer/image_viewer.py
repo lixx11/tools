@@ -1,5 +1,4 @@
 #! /opt/local/bin/python2.7
-#! coding=utf-8
 
 """
 Usage:
@@ -10,19 +9,16 @@ Options:
 """
 
 import sys
-import os
-from PyQt4 import QtCore, QtGui, uic
-from PyQt4.QtGui import QMainWindow, QApplication
-from PyQt4.QtCore import pyqtSignal, pyqtSlot
+from PyQt4 import uic
+from PyQt4.QtGui import QMainWindow
+from PyQt4.QtCore import pyqtSlot
 import pyqtgraph as pg
 from pyqtgraph.parametertree import ParameterTree, Parameter
 from pyqtgraph import PlotDataItem
-import numpy as np
-import scipy as sp
 from scipy.signal import savgol_filter, argrelmax, argrelmin
 from docopt import docopt
-import datetime
 from util import *
+import numpy as np
 
 
 class MainWindow(QMainWindow):
@@ -41,7 +37,7 @@ class MainWindow(QMainWindow):
         self.dispData = None  # 2d data for plot
         self.dispShape = None
         self.mask = None
-        self.acceptedFiletypes = [u'npy', u'npz', u'h5', u'mat']
+        self.acceptedFileTypes = [u'npy', u'npz', u'h5', u'mat']
 
         self.dispItem = self.imageView.getImageItem()
         self.ringItem = pg.ScatterPlotItem()
@@ -62,7 +58,7 @@ class MainWindow(QMainWindow):
 
         self.profileItem = PlotDataItem(pen=pg.mkPen('y', width=1, style=QtCore.Qt.SolidLine), name='profile')
         self.smoothItem = PlotDataItem(pen=pg.mkPen('g', width=2, style=QtCore.Qt.DotLine), name='smoothed profile')
-        self.thresholdItem = PlotDataItem(pen=pg.mkPen('r'), width=1, style=QtCore.Qt.DashLine, name='thredhold')
+        self.thresholdItem = PlotDataItem(pen=pg.mkPen('r'), width=1, style=QtCore.Qt.DashLine, name='threshold')
         self.profileWidget.addLegend()
         self.profileWidget.addItem(self.profileItem)
         self.profileWidget.addItem(self.smoothItem)
@@ -86,6 +82,16 @@ class MainWindow(QMainWindow):
         self.smoothFlag = False
         self.smoothWinSize = 15
         self.polyOrder = 3
+        # small data option
+        self.smallDataItem = pg.ScatterPlotItem()
+        self.smallDataWidget.addItem(self.smallDataItem)
+        self.showSmallData = False
+        self.smallDataFile = None
+        self.smallDataset = None
+        self.smallDataSorted = False
+        self.smallDataPaths = None
+        self.smallDataFrames = None
+        self.smallData = None
         # display option
         self.profileLog = False
         self.imageAutoRange = True
@@ -94,65 +100,73 @@ class MainWindow(QMainWindow):
         self.plotAutoRange = True
 
         params_list = [
-                      {'name': 'Image State Information', 'type': 'group', 'children': [
-                          {'name': 'File', 'type': 'str', 'value': 'not set', 'readonly': True},
-                          {'name': 'Dataset', 'type': 'str', 'value': 'not set', 'readonly': True},
-                          {'name': 'Mask', 'type': 'str', 'value': 'not set', 'readonly': True},
-                          {'name': 'Image Shape', 'type': 'str', 'value': 'unknown', 'readonly': True},
-                      ]},
-                      {'name': 'Basic Operation', 'type': 'group', 'children': [
-                          {'name': 'Axis', 'type': 'list', 'values': ['x','y','z'], 'value': self.axis},
-                          {'name': 'Frame Index', 'type': 'int', 'value': self.frameIndex},
-                          {'name': 'Apply Mask', 'type': 'bool', 'value': self.imageLog},
-                          {'name': 'Apply Log', 'type': 'bool', 'value': self.maskFlag},
-                          {'name': 'binaryzation', 'type': 'bool', 'value': self.binaryFlag},
-                          {'name': 'Threshold', 'type': 'float', 'value': self.dispThreshold},
-                          {'name': 'Center x', 'type': 'int', 'value': self.center[1]},
-                          {'name': 'Center y', 'type': 'int', 'value': self.center[0]},
-                          {'name': 'Show Rings', 'type': 'bool'},
-                          {'name': 'Ring Radiis', 'type': 'str', 'value': ''},
-                      ]},
-                      {'name': 'Feature Profile', 'type': 'group', 'children': [
-                          {'name': 'Show Profile', 'type': 'bool'},
-                          {'name': 'Feature', 'type': 'list', 'values': ['radial','angular', 'across center line'], 'value': self.profileType},
-                          {'name': 'Profile Mode', 'type': 'list', 'values': ['sum','mean'], 'value': self.profileMode},
-                          {'name': 'Angular Option', 'type': 'group', 'children': [
-                              {'name': 'R min', 'type': 'float', 'value': self.angularRmin},
-                              {'name': 'R max', 'type': 'float', 'value': self.angularRmax},
-                          ]},
-                          {'name': 'Across Center Line Option', 'type': 'group', 'children': [
-                              {'name': 'Angle', 'type': 'float', 'value': self.lineAngle},
-                              {'name': 'Width/pixel', 'type': 'int', 'value': self.lineWidth},
-                          ]},
-                          {'name': 'Smoothing', 'type': 'group', 'children': [
-                              {'name': 'Enable Smoothing', 'type': 'bool', 'value': self.smoothFlag},
-                              {'name': 'Window Size', 'type': 'int', 'value': self.smoothWinSize},
-                              {'name': 'Poly-Order', 'type': 'int', 'value': self.polyOrder},
-                          ]},
-                          {'name': 'Extrema Search', 'type': 'group', 'children': [
-                              {'name': 'Enable Extrema Search', 'type': 'bool', 'value': self.extremaSearch},
-                              {'name': 'Extrema Type', 'type': 'list', 'values': ['max', 'min'], 'value': self.extremaType},
-                              {'name': 'Extrema WinSize', 'type': 'int', 'value': self.extremaWinSize},
-                              {'name': 'Extrema Threshold', 'type': 'float', 'value': self.extremaThreshold},
-                          ]}
-                      ]},
-                      {'name': 'Display Option', 'type': 'group', 'children': [
-                          {'name': 'Image Option', 'type': 'group', 'children': [
-                              {'name': 'autoRange', 'type': 'bool', 'value': self.imageAutoRange},
-                              {'name': 'autoLevels', 'type': 'bool', 'value': self.imageAutoLevels},
-                              {'name': 'autoHistogramRange', 'type': 'bool', 'value': self.imageAutoHistogramRange},
-                          ]},
-                          {'name': 'Plot Option', 'type': 'group',  'children': [
-                              {'name': 'autoRange', 'type': 'bool', 'value': self.plotAutoRange},
-                              {'name': 'Log', 'type': 'bool', 'value': self.profileLog},
-                          ]},
-                      ]}
-                  ]
+                        {'name': 'Image State Information', 'type': 'group', 'children': [
+                            {'name': 'File', 'type': 'str', 'value': 'not set', 'readonly': True},
+                            {'name': 'Dataset', 'type': 'str', 'value': 'not set', 'readonly': True},
+                            {'name': 'Mask', 'type': 'str', 'value': 'not set', 'readonly': True},
+                            {'name': 'Image Shape', 'type': 'str', 'value': 'unknown', 'readonly': True},
+                        ]},
+                        {'name': 'Basic Operation', 'type': 'group', 'children': [
+                            {'name': 'Axis', 'type': 'list', 'values': ['x','y','z'], 'value': self.axis},
+                            {'name': 'Frame Index', 'type': 'int', 'value': self.frameIndex},
+                            {'name': 'Apply Mask', 'type': 'bool', 'value': self.imageLog},
+                            {'name': 'Apply Log', 'type': 'bool', 'value': self.maskFlag},
+                            {'name': 'binaryzation', 'type': 'bool', 'value': self.binaryFlag},
+                            {'name': 'Threshold', 'type': 'float', 'value': self.dispThreshold},
+                            {'name': 'Center x', 'type': 'int', 'value': self.center[1]},
+                            {'name': 'Center y', 'type': 'int', 'value': self.center[0]},
+                            {'name': 'Show Rings', 'type': 'bool'},
+                            {'name': 'Ring Radiis', 'type': 'str', 'value': ''},
+                        ]},
+                        {'name': 'Feature Profile', 'type': 'group', 'children': [
+                            {'name': 'Show Profile', 'type': 'bool', 'value': self.showProfile},
+                            {'name': 'Feature', 'type': 'list', 'values': ['radial','angular', 'across center line'], 'value': self.profileType},
+                            {'name': 'Profile Mode', 'type': 'list', 'values': ['sum','mean'], 'value': self.profileMode},
+                            {'name': 'Angular Option', 'type': 'group', 'children': [
+                                {'name': 'R min', 'type': 'float', 'value': self.angularRmin},
+                                {'name': 'R max', 'type': 'float', 'value': self.angularRmax},
+                            ]},
+                            {'name': 'Across Center Line Option', 'type': 'group', 'children': [
+                                {'name': 'Angle', 'type': 'float', 'value': self.lineAngle},
+                                {'name': 'Width/pixel', 'type': 'int', 'value': self.lineWidth},
+                            ]},
+                            {'name': 'Smoothing', 'type': 'group', 'children': [
+                                {'name': 'Enable Smoothing', 'type': 'bool', 'value': self.smoothFlag},
+                                {'name': 'Window Size', 'type': 'int', 'value': self.smoothWinSize},
+                                {'name': 'Poly-Order', 'type': 'int', 'value': self.polyOrder},
+                            ]},
+                            {'name': 'Extrema Search', 'type': 'group', 'children': [
+                                {'name': 'Enable Extrema Search', 'type': 'bool', 'value': self.extremaSearch},
+                                {'name': 'Extrema Type', 'type': 'list', 'values': ['max', 'min'], 'value': self.extremaType},
+                                {'name': 'Extrema WinSize', 'type': 'int', 'value': self.extremaWinSize},
+                                {'name': 'Extrema Threshold', 'type': 'float', 'value': self.extremaThreshold},
+                            ]}
+                        ]},
+                        {'name': 'Small Data', 'type': 'group', 'children': [
+                            {'name': 'Filepath', 'type': 'str'},
+                            {'name': 'Dataset', 'type': 'str'},
+                            {'name': 'Show data', 'type': 'bool', 'value': self.showSmallData},
+                            {'name': 'Sort', 'type': 'bool', 'value': self.smallDataSorted},
+                        ]},
+                        {'name': 'Display Option', 'type': 'group', 'children': [
+                            {'name': 'Image Option', 'type': 'group', 'children': [
+                                {'name': 'autoRange', 'type': 'bool', 'value': self.imageAutoRange},
+                                {'name': 'autoLevels', 'type': 'bool', 'value': self.imageAutoLevels},
+                                {'name': 'autoHistogramRange', 'type': 'bool', 'value': self.imageAutoHistogramRange},
+                            ]},
+                            {'name': 'Plot Option', 'type': 'group',  'children': [
+                                {'name': 'autoRange', 'type': 'bool', 'value': self.plotAutoRange},
+                                {'name': 'Log', 'type': 'bool', 'value': self.profileLog},
+                            ]},
+                        ]}
+                      ]
         self.params = Parameter.create(name='', type='group', children=params_list)
         self.parameterTree.setParameters(self.params, showTop=False)
 
         self.fileList.itemDoubleClicked.connect(self.changeDatasetSlot)
         self.fileList.customContextMenuRequested.connect(self.showFileMenuSlot)
+        self.imageView.scene.sigMouseMoved.connect(self.mouseMoved)
+        self.smallDataItem.sigClicked.connect(self.smallDataClicked)
 
         self.params.param('Basic Operation', 'Axis').sigValueChanged.connect(self.axisChangedSlot)
         self.params.param('Basic Operation', 'Frame Index').sigValueChanged.connect(self.frameIndexChangedSlot)
@@ -168,17 +182,22 @@ class MainWindow(QMainWindow):
         self.params.param('Feature Profile', 'Show Profile').sigValueChanged.connect(self.showProfileSlot)
         self.params.param('Feature Profile', 'Feature').sigValueChanged.connect(self.setProfileTypeSlot)
         self.params.param('Feature Profile', 'Profile Mode').sigValueChanged.connect(self.setProfileModeSlot)
-        self.params.param('Feature Profile', 'Angular Option', 'R min').sigValueChanged.connect(self.setAngularRmin)
-        self.params.param('Feature Profile', 'Angular Option', 'R max').sigValueChanged.connect(self.setAngularRmax)
-        self.params.param('Feature Profile', 'Across Center Line Option', 'Angle').sigValueChanged.connect(self.setLineAngle)
-        self.params.param('Feature Profile', 'Across Center Line Option', 'Width/pixel').sigValueChanged.connect(self.setLineWidth)
-        self.params.param('Feature Profile', 'Smoothing', 'Enable Smoothing').sigValueChanged.connect(self.setSmooth)
-        self.params.param('Feature Profile', 'Smoothing', 'Window Size').sigValueChanged.connect(self.setWinSize)
-        self.params.param('Feature Profile', 'Smoothing', 'Poly-Order').sigValueChanged.connect(self.setPolyOrder)
-        self.params.param('Feature Profile', 'Extrema Search', 'Enable Extrema Search').sigValueChanged.connect(self.setExtremaSearch)
-        self.params.param('Feature Profile', 'Extrema Search', 'Extrema Type').sigValueChanged.connect(self.setExtremaType)
-        self.params.param('Feature Profile', 'Extrema Search', 'Extrema WinSize').sigValueChanged.connect(self.setExtremaWinSize)
-        self.params.param('Feature Profile', 'Extrema Search', 'Extrema Threshold').sigValueChanged.connect(self.setExtremaThreshold)
+        self.params.param('Feature Profile', 'Angular Option', 'R min').sigValueChanged.connect(self.setAngularRminSlot)
+        self.params.param('Feature Profile', 'Angular Option', 'R max').sigValueChanged.connect(self.setAngularRmaxSlot)
+        self.params.param('Feature Profile', 'Across Center Line Option', 'Angle').sigValueChanged.connect(self.setLineAngleSlot)
+        self.params.param('Feature Profile', 'Across Center Line Option', 'Width/pixel').sigValueChanged.connect(self.setLineWidthSlot)
+        self.params.param('Feature Profile', 'Smoothing', 'Enable Smoothing').sigValueChanged.connect(self.setSmoothSlot)
+        self.params.param('Feature Profile', 'Smoothing', 'Window Size').sigValueChanged.connect(self.setWinSizeSlot)
+        self.params.param('Feature Profile', 'Smoothing', 'Poly-Order').sigValueChanged.connect(self.setPolyOrderSlot)
+        self.params.param('Feature Profile', 'Extrema Search', 'Enable Extrema Search').sigValueChanged.connect(self.setExtremaSearchSlot)
+        self.params.param('Feature Profile', 'Extrema Search', 'Extrema Type').sigValueChanged.connect(self.setExtremaTypeSlot)
+        self.params.param('Feature Profile', 'Extrema Search', 'Extrema WinSize').sigValueChanged.connect(self.setExtremaWinSizeSlot)
+        self.params.param('Feature Profile', 'Extrema Search', 'Extrema Threshold').sigValueChanged.connect(self.setExtremaThresholdSlot)
+
+        self.params.param('Small Data', 'Filepath').sigValueChanged.connect(self.setSmallDataFilepathSlot)
+        self.params.param('Small Data', 'Dataset').sigValueChanged.connect(self.setSmallDatasetSlot)
+        self.params.param('Small Data', 'Show data').sigValueChanged.connect(self.showSmallDataSlot)
+        self.params.param('Small Data', 'Sort').sigValueChanged.connect(self.sortSmallDataSlot)
 
         self.params.param('Display Option', 'Image Option', 'autoRange').sigValueChanged.connect(self.imageAutoRangeSlot)
         self.params.param('Display Option', 'Image Option', 'autoLevels').sigValueChanged.connect(self.imageAutoLevelsSlot)
@@ -186,11 +205,42 @@ class MainWindow(QMainWindow):
         self.params.param('Display Option', 'Plot Option', 'autoRange').sigValueChanged.connect(self.plotAutoRangeSlot)
         self.params.param('Display Option', 'Plot Option', 'Log').sigValueChanged.connect(self.setLogModeSlot)
 
-        self.imageView.scene.sigMouseMoved.connect(self.mouseMoved)
-        self.centerMarkItem.sigClicked.connect(self._test)
+    def smallDataClicked(self, _, points):
+        _temp_file = '.temp.npy'
+        pos = points[0].pos()
+        index = int(points[0].pos()[0])
+        if self.smallDataSorted:
+            index = np.argsort(self.smallData)[index]
+        filepath = self.smallDataPaths[index]
+        frame = self.smallDataFrames[index]
+        print_with_timestamp('showing file: %s, frame: %d' %(filepath, frame))
+        make_temp_file(filepath, frame, _temp_file)
+        maybeExistIndex = self.fileList.indexOf(_temp_file)
+        if maybeExistIndex != -1:
+            self.fileList.takeTopLevelItem(maybeExistIndex)
+        item = FileItem(filepath=_temp_file)
+        self.fileList.insertTopLevelItem(0, item)
+        self.changeDatasetSlot(item, 0)
 
-    def _test(points):
-        print 'fdsafdsa' 
+    def setSmallDataFilepathSlot(self, _, filepath):
+        print_with_timestamp('set filepath for small data: %s' % str(filepath))
+        self.smallDataFile = filepath
+        self.maybeShowSmallData()
+
+    def setSmallDatasetSlot(self, _, dataset):
+        print_with_timestamp('set dataset for small data: %s' % str(dataset))
+        self.smallDataset = dataset
+        self.maybeShowSmallData()
+
+    def showSmallDataSlot(self, _, showSmallData):
+        print_with_timestamp('set show small data: %s' % str(showSmallData))
+        self.showSmallData = showSmallData
+        self.maybeShowSmallData()
+
+    def sortSmallDataSlot(self, _, sort):
+        print_with_timestamp('set show small data sorted: %s' % str(sort))
+        self.smallDataSorted = sort
+        self.maybeShowSmallData()
 
     def dragEnterEvent(self, event):
         urls = event.mimeData().urls()
@@ -201,7 +251,7 @@ class MainWindow(QMainWindow):
                 dropFile = url.toLocalFile()
             fileInfo = QtCore.QFileInfo(dropFile)
             ext = fileInfo.suffix()
-            if ext in self.acceptedFiletypes:
+            if ext in self.acceptedFileTypes:
                 event.accept()
                 return None
         event.ignore()
@@ -215,7 +265,10 @@ class MainWindow(QMainWindow):
             else:
                 dropFile = url.toLocalFile()
             ext = QtCore.QFileInfo(dropFile).suffix()
-            if ext in self.acceptedFiletypes:
+            if ext in self.acceptedFileTypes:
+                maybeExistIndex = self.fileList.indexOf(dropFile)
+                if maybeExistIndex != -1:
+                    self.fileList.takeTopLevelItem(maybeExistIndex)
                 item = FileItem(filepath=dropFile)
                 self.fileList.insertTopLevelItem(0, item)
 
@@ -258,12 +311,40 @@ class MainWindow(QMainWindow):
             center = [self.imageShape[1]//2, self.imageShape[0]//2]
         return center
 
+    def maybeShowSmallData(self):
+        if self.showSmallData:
+            print_with_timestamp('show small data!!')
+            if not self.smallDataWidget.isVisible():
+                self.smallDataWidget.show()
+                if self.profileWidget.isVisible():
+                    self.splitter.setSizes([self.splitter.width()*0.5, self.splitter.width()*0.5])
+                else:
+                    self.splitter_2.setSizes([self.height() * 0.7, self.height() * 0.3])
+            self.smallDataWidget.setTitle('Small Data')
+            self.smallDataWidget.setLabels(bottom='index', left='metric')
+            if self.smallDataFile is not None and self.smallDataset is not None:
+                print_with_timestamp('showing small data set')
+                paths, frames, smallData = load_smalldata(self.smallDataFile, self.smallDataset)
+                self.smallDataPaths = paths
+                self.smallDataFrames = frames
+                self.smallData = smallData
+                if self.smallDataSorted:
+                    index_array = np.argsort(self.smallData).astype(np.int32)
+                    self.smallDataItem.setData(x=np.arange(self.smallData.size), y=self.smallData[index_array])
+                else:
+                    self.smallDataItem.setData(x=np.arange(self.smallData.size), y=self.smallData)
+        else:
+            self.smallDataWidget.hide()
+
     def maybePlotProfile(self):
         if self.showProfile:
             print_with_timestamp("OK, I'll plot %s profile" %self.profileType)
-            if self.profileWidget.isVisible() == False:
+            if not self.profileWidget.isVisible():
                 self.profileWidget.show()
-                self.splitter_2.setSizes([self.height()*0.7, self.height()*0.3])
+                if self.smallDataWidget.isVisible():
+                    self.splitter.setSizes([self.splitter.width() * 0.5, self.splitter.width() * 0.5])
+                else:
+                    self.splitter_2.setSizes([self.height()*0.7, self.height()*0.3])
             viewBox = self.profileWidget.getViewBox()
             if self.plotAutoRange:
                 viewBox.enableAutoRange()
@@ -362,7 +443,6 @@ class MainWindow(QMainWindow):
         else:
             event.ignore()
 
-    @pyqtSlot(QtGui.QTreeWidgetItem, int)
     def changeDatasetSlot(self, item, column):
         if isinstance(item, DatasetItem):
             datasetItem = item
@@ -378,6 +458,8 @@ class MainWindow(QMainWindow):
         self.maybePlotProfile()
 
     def changeDisp(self):
+        if self.imageData is None:
+            return
         dispData = self.calcDispData()
         self.dispShape = dispData.shape
         if self.maskFlag:
@@ -398,99 +480,78 @@ class MainWindow(QMainWindow):
                 self.ringItem.setData(_cx, _cy, size=self.ringRadiis*2., symbol='o', brush=(255,255,255,0), pen='r', pxMode=False)
         self.centerMarkItem.setData([self.center[0]], [self.center[1]], size=10, symbol='+', brush=(255,255,255,0), pen='r', pxMode=False)
 
-    @pyqtSlot(object)
-    def setLineAngle(self, lineAngle):
-        lineAngle = lineAngle.value()
+    def setLineAngleSlot(self, _, lineAngle):
         print_with_timestamp('set line angle: %s' %str(lineAngle))
         self.lineAngle = lineAngle
         self.maybePlotProfile()
 
-    @pyqtSlot(object)
-    def setLineWidth(self, lineWidth):
-        lineWidth = lineWidth.value()
+    def setLineWidthSlot(self, _, lineWidth):
         print_with_timestamp('set line width: %s' %str(lineWidth))
         self.lineWidth = lineWidth
         self.maybePlotProfile()
 
-    @pyqtSlot(object)
-    def applyImageLogSlot(self, imageLog):
-        imageLog = imageLog.value()
+    def applyImageLogSlot(self, _, imageLog):
         print_with_timestamp('set image log: %s' %str(imageLog))
         self.imageLog = imageLog
         self.changeDisp()
         self.maybePlotProfile()
 
-    @pyqtSlot(object)
-    def setExtremaSearch(self, extremaSearch):
-        extremaSearch = extremaSearch.value()
+    def setExtremaSearchSlot(self, _, extremaSearch):
         print_with_timestamp('set extrema search: %s' %str(extremaSearch))
         self.extremaSearch = extremaSearch
         self.maybePlotProfile()
 
-    @pyqtSlot(object)
-    def setExtremaWinSize(self, extremaWinSize):
-        extremaWinSize = extremaWinSize.value()
+    def setExtremaWinSizeSlot(self, _, extremaWinSize):
         print_with_timestamp('set extrema window size: %s' %str(extremaWinSize))
         self.extremaWinSize = extremaWinSize
         self.maybePlotProfile()
 
-    @pyqtSlot(object)
-    def setExtremaType(self, extremaType):
-        extremaType = extremaType.value()
+    def setExtremaTypeSlot(self, _, extremaType):
         print_with_timestamp('set extrema type: %s' %str(extremaType))
         self.extremaType = extremaType
         self.maybePlotProfile()
 
-    @pyqtSlot(object)
-    def setExtremaThreshold(self, extremaThreshold):
-        extremaThreshold = extremaThreshold.value()
+    def setExtremaThresholdSlot(self, _, extremaThreshold):
         print_with_timestamp('set extrema threshold: %s' %str(extremaThreshold))
         self.extremaThreshold = extremaThreshold
         self.maybePlotProfile()
 
-    @pyqtSlot(object)
-    def axisChangedSlot(self, axis):
+    def axisChangedSlot(self, _, axis):
         print_with_timestamp('axis changed.')
-        self.axis = axis.value()
+        self.axis = axis
         self.center = self.calcCenter()
         self.setCenterInfo()
         self.changeDisp()
         self.maybePlotProfile()
 
-    @pyqtSlot(object)
-    def frameIndexChangedSlot(self, frameIndex):
+    def frameIndexChangedSlot(self, _, frameIndex):
         print_with_timestamp('frame index changed')
-        self.frameIndex = frameIndex.value()
+        self.frameIndex = frameIndex
         self.changeDisp()
         self.maybePlotProfile()
 
-    @pyqtSlot(object)
-    def showProfileSlot(self, showProfile):
+    def showProfileSlot(self, _, showProfile):
         print_with_timestamp('show or hide radial profile changed')
-        self.showProfile = showProfile.value()
+        self.showProfile = showProfile
         self.maybePlotProfile()
 
-    @pyqtSlot(object)
-    def setLogModeSlot(self, log):
+    def setLogModeSlot(self, _, log):
         print_with_timestamp('log mode changed')
-        self.profileLog = log.value()
+        self.profileLog = log
         self.maybePlotProfile()
 
-    @pyqtSlot(object)
-    def centerXChangedSlot(self, centerX):
+    def centerXChangedSlot(self, _, centerX):
         print_with_timestamp('center X changed')
-        self.center[0] = centerX.value()
+        self.center[0] = centerX
         self.changeDisp()
         self.maybePlotProfile()
 
-    @pyqtSlot(object)
-    def centerYChangedSlot(self, centerY):
+    def centerYChangedSlot(self, _, centerY):
         print_with_timestamp('center Y changed')
-        self.center[1] = centerY.value()
+        self.center[1] = centerY
         self.changeDisp()
         self.maybePlotProfile()
 
-    @pyqtSlot(object)
     def showFileMenuSlot(self, position):
         fileMenu = QtGui.QMenu()
         item = self.fileList.currentItem()
@@ -510,89 +571,76 @@ class MainWindow(QMainWindow):
             if action == deleteAction:
                 print('deleting this file')
 
-    @pyqtSlot(object)
-    def applyMaskSlot(self, mask):
+    def applyMaskSlot(self, _, mask):
         print_with_timestamp('turn on mask: %s' %str(mask.value()))
-        self.maskFlag = mask.value()
+        self.maskFlag = mask
         self.changeDisp()
         self.maybePlotProfile()
 
-    @pyqtSlot(object)
-    def imageAutoRangeSlot(self, imageAutoRange):
-        print_with_timestamp('set image autorange: %s' %str(imageAutoRange.value()))
-        self.imageAutoRange = imageAutoRange.value()
+    def imageAutoRangeSlot(self, _, imageAutoRange):
+        print_with_timestamp('set image autorange: %s' %str(imageAutoRange))
+        self.imageAutoRange = imageAutoRange
         self.changeDisp()
 
-    @pyqtSlot(object)
-    def imageAutoLevelsSlot(self, imageAutoLevels):
-        print_with_timestamp('set image autolevels: %s' %str(imageAutoLevels.value()))
-        self.imageAutoLevels = imageAutoLevels.value()
+    def imageAutoLevelsSlot(self, _, imageAutoLevels):
+        print_with_timestamp('set image autolevels: %s' %str(imageAutoLevels))
+        self.imageAutoLevels = imageAutoLevels
         self.changeDisp()
 
-    @pyqtSlot(object)
-    def imageAutoHistogramRangeSlot(self, imageAutoHistogramRange):
-        print_with_timestamp('set image autohistogram: %s' %str(imageAutoHistogramRange.value()))
-        self.imageAutoHistogramRange = imageAutoHistogramRange.value()
+    def imageAutoHistogramRangeSlot(self, _, imageAutoHistogramRange):
+        print_with_timestamp('set image autohistogram: %s' %str(imageAutoHistogramRange))
+        self.imageAutoHistogramRange = imageAutoHistogramRange
         self.changeDisp()
 
-    @pyqtSlot(object)
-    def plotAutoRangeSlot(self, plotAutoRange):
-        print_with_timestamp('set plot autorange: %s' %str(plotAutoRange.value()))
-        self.plotAutoRange = plotAutoRange.value()
+    def plotAutoRangeSlot(self, _, plotAutoRange):
+        print_with_timestamp('set plot autorange: %s' %str(plotAutoRange))
+        self.plotAutoRange = plotAutoRange
         self.maybePlotProfile()
 
-    @pyqtSlot(object)
-    def showRingsSlot(self, showRings):
-        print_with_timestamp('show rings: %s' %showRings.value())
-        self.showRings = showRings.value()
+    def showRingsSlot(self, _, showRings):
+        print_with_timestamp('show rings: %s' %showRings)
+        self.showRings = showRings
         self.changeDisp()
 
-    @pyqtSlot(object)
-    def ringRadiiSlot(self, ringRadiis):
-        print_with_timestamp('set ring radiis: %s' %str(ringRadiis.value()))
-        ringRadiisStrList = ringRadiis.value().split()
+    def ringRadiiSlot(self, _, ringRadiis):
+        print_with_timestamp('set ring radiis: %s' %str(ringRadiis))
+        ringRadiisStrList = ringRadiis.split()
         ringRadiis = []
         for ringRadiisStr in ringRadiisStrList:
             ringRadiis.append(float(ringRadiisStr))
         self.ringRadiis = np.asarray(ringRadiis)
         self.changeDisp()
 
-    @pyqtSlot(object)
-    def setProfileTypeSlot(self, profileType):
-        print_with_timestamp('set profile type: %s' %str(profileType.value()))
-        self.profileType = profileType.value()
+    def setProfileTypeSlot(self, _, profileType):
+        print_with_timestamp('set profile type: %s' %str(profileType))
+        self.profileType = profileType
         self.maybePlotProfile()
 
-    @pyqtSlot(object)
-    def setProfileModeSlot(self, profileMode):
-        print_with_timestamp('set profile mode: %s' %str(profileMode.value()))
-        self.profileMode = profileMode.value()
+    def setProfileModeSlot(self, _, profileMode):
+        print_with_timestamp('set profile mode: %s' %str(profileMode))
+        self.profileMode = profileMode
         self.maybePlotProfile()
 
-    @pyqtSlot(object)
-    def binaryImageSlot(self, binaryImage):
-        print_with_timestamp('apply binaryzation: %s' %str(binaryImage.value()))
-        self.binaryFlag = binaryImage.value()
+    def binaryImageSlot(self, _, binaryImage):
+        print_with_timestamp('apply binaryzation: %s' %str(binaryImage))
+        self.binaryFlag = binaryImage
         self.changeDisp()
         self.maybePlotProfile()
 
-    @pyqtSlot(object)
-    def setDispThresholdSlot(self, threshold):
-        print_with_timestamp('set disp threshold: %.1f' %threshold.value())
-        self.dispThreshold = threshold.value()
+    def setDispThresholdSlot(self, _, threshold):
+        print_with_timestamp('set disp threshold: %.1f' %threshold)
+        self.dispThreshold = threshold
         self.changeDisp()
         self.maybePlotProfile()
 
-    @pyqtSlot(object)
-    def setSmooth(self, smooth):
-        print_with_timestamp('set smooth: %s' %str(smooth.value()))
-        self.smoothFlag = smooth.value()
+    def setSmoothSlot(self, _, smooth):
+        print_with_timestamp('set smooth: %s' %str(smooth))
+        self.smoothFlag = smooth
         self.changeDisp()
         self.maybePlotProfile()
 
-    @pyqtSlot(object)
-    def setWinSize(self, winSize):
-        winSize = winSize.value()
+    def setWinSizeSlot(self, _, winSize):
+        winSize = winSize
         if winSize % 2 == 0:
             winSize += 1  # winSize must be odd
         print_with_timestamp('set smooth winsize: %d' %winSize)
@@ -600,30 +648,24 @@ class MainWindow(QMainWindow):
         self.changeDisp()
         self.maybePlotProfile()
 
-    @pyqtSlot(object)
-    def setPolyOrder(self, polyOrder):
-        print_with_timestamp('set poly order: %d' %polyOrder.value())
-        self.polyOrder = polyOrder.value()
+    def setPolyOrderSlot(self, _, polyOrder):
+        print_with_timestamp('set poly order: %d' %polyOrder)
+        self.polyOrder = polyOrder
         self.changeDisp()
         self.maybePlotProfile()
 
-    @pyqtSlot(object)
-    def setAngularRmin(self, Rmin):
-        Rmin = float(Rmin.value())
+    def setAngularRminSlot(self, _, Rmin):
         print_with_timestamp('set angular Rmin to %.1f' %Rmin)
         self.angularRmin = Rmin
         self.changeDisp()
         self.maybePlotProfile()
 
-    @pyqtSlot(object)
-    def setAngularRmax(self, Rmax):
-        Rmax = float(Rmax.value())
+    def setAngularRmaxSlot(self, _, Rmax):
         print_with_timestamp('set angular Rmax to %.1f' %Rmax)
         self.angularRmax = Rmax
         self.changeDisp()
         self.maybePlotProfile()
 
-    @pyqtSlot(object)
     def mouseMoved(self, pos):
         if self.dispShape is None:
             return None
@@ -631,7 +673,7 @@ class MainWindow(QMainWindow):
         x, y = int(mouse_point.x()), int(mouse_point.y())
         filename = os.path.basename(str(self.filepath))
         if 0 <= x < self.dispData.shape[0] and 0 <= y < self.dispData.shape[1]:
-            self.statusbar.showMessage("%s x:%d y:%d I:%.2E" %(filename, x, y, self.dispData[x, y]), 5000)
+            self.statusbar.showMessage("%s x:%d y:%d I:%.2E" %(filename, x, y, self.dispData[y, x]), 5000)
         else:
             pass
 
@@ -658,6 +700,13 @@ class DatasetTreeWidget(QtGui.QTreeWidget):
     """docstring for DatasetTreeWidget"""
     def __init__(self, parent=None):
         super(DatasetTreeWidget, self).__init__(parent)
+
+    def indexOf(self, filepath):
+        for i in range(self.topLevelItemCount()):
+            item = self.topLevelItem(i)
+            if str(item.filepath) == str(filepath):
+                return i
+        return -1
 
 
 class FileItem(QtGui.QTreeWidgetItem):
