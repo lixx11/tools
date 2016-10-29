@@ -24,7 +24,8 @@ import numpy as np
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
-        uic.loadUi('layout.ui', self)
+        _dir = os.path.dirname(__file__)
+        uic.loadUi(_dir + '/' + 'layout.ui', self)
         self.profileWidget.hide()
         self.smallDataWidget.hide()
         self.splitter_3.setSizes([self.width()*0.7, self.width()*0.3])
