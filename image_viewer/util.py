@@ -109,6 +109,7 @@ def calc_radial_profile(image, center, binsize=1., mask=None, mode='sum'):
         nr = np.bincount(bin_r.ravel(), mask.ravel())
         radial_mean = radial_sum / nr
         radial_mean[np.isinf(radial_mean)] = 0.
+        radial_mean[np.isnan(radial_mean)] = 0.
         return radial_mean
     else:
         raise ValueError('Wrong mode: %s' %mode)
