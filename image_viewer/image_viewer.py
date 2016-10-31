@@ -573,7 +573,7 @@ class MainWindow(QMainWindow):
                 print('deleting this file')
 
     def applyMaskSlot(self, _, mask):
-        print_with_timestamp('turn on mask: %s' %str(mask.value()))
+        print_with_timestamp('turn on mask: %s' %str(mask))
         self.maskFlag = mask
         self.changeDisp()
         self.maybePlotProfile()
