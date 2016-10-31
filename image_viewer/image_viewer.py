@@ -673,7 +673,7 @@ class MainWindow(QMainWindow):
         mouse_point = self.imageView.view.mapToView(pos)
         x, y = int(mouse_point.x()), int(mouse_point.y())
         filename = os.path.basename(str(self.filepath))
-        if 0 <= x < self.dispData.shape[0] and 0 <= y < self.dispData.shape[1]:
+        if 0 <= x < self.dispData.shape[1] and 0 <= y < self.dispData.shape[0]:
             self.statusbar.showMessage("%s x:%d y:%d I:%.2E" %(filename, x, y, self.dispData[y, x]), 5000)
         else:
             pass
