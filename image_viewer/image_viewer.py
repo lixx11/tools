@@ -356,15 +356,16 @@ class MainWindow(QMainWindow):
             else:
                 self.profileWidget.setLogMode(y=False)
             if self.dispData is not None:
+                mask = self.mask.copy()
                 if self.maskFlag == True:
-                    assert self.mask.shape == self.dispData.shape
+                    assert mask.shape == self.dispData.shape
                 else:
-                    self.mask = np.ones_like(self.dispData)
+                    mask = np.ones_like(self.dispData)
                 if self.profileType == 'radial':
-                    profile = calc_radial_profile(self.dispData, self.center, mask=self.mask, mode=self.profileMode)
+                    profile = calc_radial_profile(self.dispData, self.center, mask=mask, mode=self.profileMode)
                 elif self.profileType == 'angular':
                     annulus_mask = make_annulus(self.dispShape, self.angularRmin, self.angularRmax)
-                    profile = calc_angular_profile(self.dispData, self.center, mask=self.mask*annulus_mask, mode=self.profileMode)
+                    profile = calc_angular_profile(self.dispData, self.center, mask=mask*annulus_mask, mode=self.profileMode)
                 else:  # across center line
                     profile = calc_across_center_line_profile(self.dispData, self.center, angle=self.lineAngle, width=self.lineWidth, mask=self.mask, mode=self.profileMode)
                 if self.profileLog == True:
