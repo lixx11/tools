@@ -585,7 +585,9 @@ class MainWindow(QMainWindow):
             deleteAction = fileMenu.addAction("Delete")
             action = fileMenu.exec_(self.fileList.mapToGlobal(position))
             if action == deleteAction:
-                print('deleting this file')
+                print('deleting selected file')
+                for item in self.fileList.selectedItems():
+                    self.fileList.takeTopLevelItem(self.fileList.indexOfTopLevelItem(item))
 
     def applyMaskSlot(self, _, mask):
         print_with_timestamp('turn on mask: %s' %str(mask))
