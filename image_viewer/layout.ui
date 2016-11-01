@@ -78,37 +78,60 @@
         <attribute name="title">
          <string>File List</string>
         </attribute>
-        <layout class="QVBoxLayout" name="verticalLayout">
+        <layout class="QVBoxLayout" name="verticalLayout_3">
          <item>
-          <widget class="DatasetTreeWidget" name="fileList">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="contextMenuPolicy">
-            <enum>Qt::CustomContextMenu</enum>
-           </property>
-           <property name="selectionMode">
-            <enum>QAbstractItemView::ExtendedSelection</enum>
-           </property>
-           <property name="selectionBehavior">
-            <enum>QAbstractItemView::SelectItems</enum>
-           </property>
-           <column>
-            <property name="text">
-             <string notr="true">Filename &amp; Dataset</string>
-            </property>
-           </column>
-           <column>
-            <property name="text">
-             <string>Shape</string>
-            </property>
-           </column>
-          </widget>
+          <layout class="QVBoxLayout" name="verticalLayout">
+           <item>
+            <widget class="DatasetTreeWidget" name="fileList">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+               <horstretch>3</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="contextMenuPolicy">
+              <enum>Qt::CustomContextMenu</enum>
+             </property>
+             <property name="selectionMode">
+              <enum>QAbstractItemView::ExtendedSelection</enum>
+             </property>
+             <property name="selectionBehavior">
+              <enum>QAbstractItemView::SelectItems</enum>
+             </property>
+             <column>
+              <property name="text">
+               <string notr="true">Filename &amp; Dataset</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>Shape</string>
+              </property>
+             </column>
+            </widget>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_2">
+             <item>
+              <widget class="QLabel" name="label">
+               <property name="text">
+                <string>Add File(s)</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="lineEdit"/>
+             </item>
+            </layout>
+           </item>
+          </layout>
          </item>
         </layout>
+        <zorder>fileList</zorder>
+        <zorder>label</zorder>
+        <zorder>lineEdit</zorder>
+        <zorder>label</zorder>
+        <zorder>lineEdit</zorder>
        </widget>
        <widget class="QWidget" name="tab_2">
         <attribute name="title">

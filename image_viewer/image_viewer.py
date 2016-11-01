@@ -19,6 +19,7 @@ from scipy.signal import savgol_filter, argrelmax, argrelmin
 from docopt import docopt
 from util import *
 import numpy as np
+import glob
 
 
 class MainWindow(QMainWindow):
@@ -168,6 +169,7 @@ class MainWindow(QMainWindow):
         self.fileList.customContextMenuRequested.connect(self.showFileMenuSlot)
         self.imageView.scene.sigMouseMoved.connect(self.mouseMoved)
         self.smallDataItem.sigClicked.connect(self.smallDataClicked)
+        self.lineEdit.returnPressed.connect(self.addFilesSlot)
 
         self.params.param('Basic Operation', 'Axis').sigValueChanged.connect(self.axisChangedSlot)
         self.params.param('Basic Operation', 'Frame Index').sigValueChanged.connect(self.frameIndexChangedSlot)
@@ -205,6 +207,14 @@ class MainWindow(QMainWindow):
         self.params.param('Display Option', 'Image Option', 'autoHistogramRange').sigValueChanged.connect(self.imageAutoHistogramRangeSlot)
         self.params.param('Display Option', 'Plot Option', 'autoRange').sigValueChanged.connect(self.plotAutoRangeSlot)
         self.params.param('Display Option', 'Plot Option', 'Log').sigValueChanged.connect(self.setLogModeSlot)
+
+    def addFilesSlot(self):
+        filePattern = str(self.lineEdit.text())
+        print_with_timestamp('file(s) pattern: %s' %filePattern)
+        files = glob.glob(filePattern)
+        print_with_timestamp('adding file(s): %s \n Total Num: %d' %(str(files), len(files)))
+        for i in xrange(len(files)):
+            self.maybeAddFile(files[i])
 
     def smallDataClicked(self, _, points):
         _temp_file = '.temp.npy'
@@ -265,12 +275,16 @@ class MainWindow(QMainWindow):
                 dropFile = getFilepathFromLocalFileID(url)
             else:
                 dropFile = url.toLocalFile()
-            ext = QtCore.QFileInfo(dropFile).suffix()
-            if ext in self.acceptedFileTypes:
-                maybeExistIndex = self.fileList.indexOf(dropFile)
-                if maybeExistIndex != -1:
-                    self.fileList.takeTopLevelItem(maybeExistIndex)
-                item = FileItem(filepath=dropFile)
+            self.maybeAddFile(dropFile)
+
+    def maybeAddFile(self, filepath):
+        ext = QtCore.QFileInfo(filepath).suffix()
+        if ext in self.acceptedFileTypes:
+            maybeExistIndex = self.fileList.indexOf(filepath)
+            if maybeExistIndex != -1:
+                self.fileList.takeTopLevelItem(maybeExistIndex)
+            item = FileItem(filepath=filepath)
+            if item.childCount() > 0:
                 self.fileList.insertTopLevelItem(0, item)
 
     def loadData(self, filepath, datasetName):
@@ -719,7 +733,7 @@ class FileItem(QtGui.QTreeWidgetItem):
         basename = os.path.basename(self.filepath)
         self.setText(0, basename)
         self.setToolTip(0, self.filepath)
-        self.datasets = self.initDatasets()
+        self.initDatasets()
 
     def initDatasets(self):
         dataInfo = get_data_info(self.filepath)
