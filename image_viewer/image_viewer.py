@@ -24,7 +24,7 @@ import numpy as np
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
-        _dir = os.path.dirname(__file__)
+        _dir = os.path.dirname(os.path.abspath(__file__))
         uic.loadUi(_dir + '/' + 'layout.ui', self)
         self.profileWidget.hide()
         self.smallDataWidget.hide()
