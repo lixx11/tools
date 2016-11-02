@@ -39,7 +39,7 @@ class MainWindow(QMainWindow):
         self.dispData = None  # 2d data for plot
         self.dispShape = None
         self.mask = None
-        self.acceptedFileTypes = [u'npy', u'npz', u'h5', u'mat']
+        self.acceptedFileTypes = [u'npy', u'npz', u'h5', u'mat', u'cxi']
 
         self.dispItem = self.imageView.getImageItem()
         self.ringItem = pg.ScatterPlotItem()

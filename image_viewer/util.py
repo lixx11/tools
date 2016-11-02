@@ -295,7 +295,7 @@ def load_data(filepath, dataset_name):
         data = np.load(filepath)
     if ext == '.npz':
         data = np.load(filepath)[dataset_name]
-    elif ext == '.h5':
+    elif ext == '.h5' or ext == '.cxi':
         data = h5py.File(filepath)[dataset_name]
     elif ext == '.mat':
         try:
@@ -321,7 +321,7 @@ def get_data_info(filepath):
             if len(f[key].shape) in [2,3]:
                 data_info[key] = f[key].shape
         f.close()
-    elif ext == '.h5':
+    elif ext == '.h5' or ext == '.cxi':
         f = h5py.File(filepath, 'r')
         keys = []
         def _get_all_dataset(key):
