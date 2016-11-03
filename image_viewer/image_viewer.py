@@ -370,11 +370,11 @@ class MainWindow(QMainWindow):
             else:
                 self.profileWidget.setLogMode(y=False)
             if self.dispData is not None:
+                if self.mask is None:
+                    self.mask = np.ones_like(self.dispData)
                 mask = self.mask.copy()
                 if self.maskFlag == True:
                     assert mask.shape == self.dispData.shape
-                else:
-                    mask = np.ones_like(self.dispData)
                 if self.profileType == 'radial':
                     profile = calc_radial_profile(self.dispData, self.center, mask=mask, mode=self.profileMode)
                 elif self.profileType == 'angular':
