@@ -98,6 +98,9 @@
              <property name="selectionBehavior">
               <enum>QAbstractItemView::SelectItems</enum>
              </property>
+             <property name="sortingEnabled">
+              <bool>true</bool>
+             </property>
              <column>
               <property name="text">
                <string notr="true">Filename &amp; Dataset</string>
@@ -127,11 +130,6 @@
           </layout>
          </item>
         </layout>
-        <zorder>fileList</zorder>
-        <zorder>label</zorder>
-        <zorder>lineEdit</zorder>
-        <zorder>label</zorder>
-        <zorder>lineEdit</zorder>
        </widget>
        <widget class="QWidget" name="tab_2">
         <attribute name="title">
