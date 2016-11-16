@@ -5,6 +5,7 @@ from scipy.ndimage.interpolation import rotate
 import h5py
 import datetime
 import os
+from PIL import Image
 from PyQt4 import QtCore, QtGui
 
 
@@ -293,7 +294,7 @@ def load_data(filepath, dataset_name):
     if ext == '.npy':
         assert dataset_name == 'default'
         data = np.load(filepath)
-    if ext == '.npz':
+    elif ext == '.npz':
         data = np.load(filepath)[dataset_name]
     elif ext == '.h5' or ext == '.cxi':
         data = h5py.File(filepath)[dataset_name]
@@ -304,6 +305,9 @@ def load_data(filepath, dataset_name):
         except NotImplementedError:  # v7.3 mat use h5py 
             f = h5py.File(filepath, 'r')
             data = f[dataset_name]
+    elif ext == '.tif':
+        assert dataset_name == 'default'
+        data = np.asarray(Image.open(filepath))
     return data
 
 
@@ -345,6 +349,8 @@ def get_data_info(filepath):
                 if len(f[key].shape) in [2,3]:
                     data_info[key] = f[key].shape
             f.close()
+    elif ext == '.tif':
+        data_info['default'] = np.asarray(Image.open(filepath)).shape
     return data_info
 
 
@@ -381,6 +387,70 @@ def make_annulus(shape, inner_radii, outer_radii, fill_value=1., center=None):
     img[r>outer_radii] = 0.
     return img
 
+
+def calc_Friedel_score(image, center, mask=None, mode='mean', ignore_negative=True):
+    """Summary
+    
+    Parameters
+    ----------
+    image : 2d array
+        Input image to calculate the Friedel score.
+    center : array_like with 2 elements
+        Center of input image
+    mask : 2d array, optional
+        Binary 2d array used in angular profile calculation. The shape must be same with image. 1 means valid while 0 not.
+    mode : {'sum', 'mean'}, optional
+        'mean'
+        By default, mode is 'mean'. This returns sum(abs(diff(Friedel pair)))/num(Friedel pairs).
+    
+        'sum'
+        Mode 'sum' returns sum(abs(Friedel pair)).
+    
+        'relative'
+        Mode 'relative' returns sum(abs(diff(Friedel pair)/mean(Friedel pair)))/num(Friedel pairs)
+    ignore_negative : bool, optional
+        Ignore pixel <= 0.
+    
+    Returns
+    -------
+    Friedel score : float
+        Centrosymmetric score.
+    
+    Raises
+    ------
+    Error
+        Description
+    """
+    image = np.asarray(image, dtype=np.float64)
+    assert len(image.shape) == 2
+    center = np.asarray(center, dtype=np.int)
+    assert center.size == 2
+    if mask is not None:
+        mask = np.asarray(mask, dtype=np.float64)
+        assert mask.shape == image.shape
+        assert mask.min() >= 0. and mask.max() <= 1.
+        mask = (mask > 0.5).astype(np.float64)
+    else:
+        mask = np.ones(image.shape)
+    cy, cx = center[0], center[1]
+    sy, sx = image.shape
+    lx = min(cx, sx-cx-1)
+    ly = min(cy, sy-cy-1)
+    image = image[cy-ly:cy+ly+1, cx-lx:cx+lx+1]
+    mask = mask[cy-ly:cy+ly+1, cx-lx:cx+lx+1]
+    if ignore_negative:
+        mask *= (image > 0)
+    mask = mask * np.rot90(np.rot90(mask))
+
+    if mode == 'sum':
+        return (np.abs(image - np.rot90(np.rot90(image))) * mask).sum()
+    elif mode == 'mean':
+        return (np.abs(image - np.rot90(np.rot90(image))) * mask).sum() / mask.sum()
+    elif mode == 'relative':
+        mean_image = 0.5 * (image + np.rot90(np.rot90(image))) + 1.E-10  # avoid divide 0 error
+        return (np.abs((image - np.rot90(np.rot90(image))) / mean_image) * mask).sum() / mask.sum()
+    else:
+        raise Error('Unrecoganized mode: %s' %mode)
 
 def getFilepathFromLocalFileID(localFileID):  # get real filepath from POSIX file in mac
     import CoreFoundation as CF

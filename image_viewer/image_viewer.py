@@ -39,7 +39,7 @@ class MainWindow(QMainWindow):
         self.dispData = None  # 2d data for plot
         self.dispShape = None
         self.mask = None
-        self.acceptedFileTypes = [u'npy', u'npz', u'h5', u'mat', u'cxi']
+        self.acceptedFileTypes = [u'npy', u'npz', u'h5', u'mat', u'cxi', u'tif']
 
         self.dispItem = self.imageView.getImageItem()
         self.ringItem = pg.ScatterPlotItem()
@@ -102,11 +102,12 @@ class MainWindow(QMainWindow):
         self.plotAutoRange = True
 
         params_list = [
-                        {'name': 'Image State Information', 'type': 'group', 'children': [
+                        {'name': 'Image Info', 'type': 'group', 'children': [
                             {'name': 'File', 'type': 'str', 'value': 'not set', 'readonly': True},
                             {'name': 'Dataset', 'type': 'str', 'value': 'not set', 'readonly': True},
                             {'name': 'Mask', 'type': 'str', 'value': 'not set', 'readonly': True},
                             {'name': 'Image Shape', 'type': 'str', 'value': 'unknown', 'readonly': True},
+                            {'name': 'Friedel Score', 'type': 'float', 'readonly': True},
                         ]},
                         {'name': 'Basic Operation', 'type': 'group', 'children': [
                             {'name': 'Axis', 'type': 'list', 'values': ['x','y','z'], 'value': self.axis},
@@ -299,9 +300,9 @@ class MainWindow(QMainWindow):
         elif len(self.imageShape) == 3:
             _x, _y, _z = self.imageShape
             _shape_str = 'x: %d, y: %d, z: %d' %(_x, _y, _z)
-        self.params.param('Image State Information', 'Image Shape').setValue(_shape_str)
-        self.params.param('Image State Information', 'File').setValue(basename)
-        self.params.param('Image State Information', 'Dataset').setValue(datasetName)
+        self.params.param('Image Info', 'Image Shape').setValue(_shape_str)
+        self.params.param('Image Info', 'File').setValue(basename)
+        self.params.param('Image Info', 'Dataset').setValue(datasetName)
         if len(self.imageShape) == 3:
             self.dispShape = self.imageData.shape[1:3]
         else:
@@ -495,6 +496,8 @@ class MainWindow(QMainWindow):
                 _cy = np.ones_like(self.ringRadiis) * self.center[1]
                 self.ringItem.setData(_cx, _cy, size=self.ringRadiis*2., symbol='o', brush=(255,255,255,0), pen='r', pxMode=False)
         self.centerMarkItem.setData([self.center[0]], [self.center[1]], size=10, symbol='+', brush=(255,255,255,0), pen='r', pxMode=False)
+        Friedel_score = calc_Friedel_score(self.dispData, self.center, mask=self.mask, mode='relative')
+        self.params.param('Image Info', 'Friedel Score').setValue(Friedel_score)
 
     def setLineAngleSlot(self, _, lineAngle):
         print_with_timestamp('set line angle: %s' %str(lineAngle))
@@ -580,7 +583,7 @@ class MainWindow(QMainWindow):
                 if len(mask.shape) != 2:
                     raise ValueError('%s:%s can not be used as mask. Mask data must be 2d.' %(filepath, item.datasetName))
                 self.mask = np.asarray(mask)
-                self.params.param('Image State Information', 'Mask').setValue("%s::%s" %(os.path.basename(filepath), item.datasetName))
+                self.params.param('Image Info', 'Mask').setValue("%s::%s" %(os.path.basename(filepath), item.datasetName))
         elif isinstance(item, FileItem):
             deleteAction = fileMenu.addAction("Delete")
             action = fileMenu.exec_(self.fileList.mapToGlobal(position))
