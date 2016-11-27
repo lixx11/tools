@@ -318,12 +318,18 @@ def get_data_info(filepath):
     _, ext = os.path.splitext(filepath)
     data_info = {}
     if ext == '.npy':
-        data_info['default'] = np.load(filepath, 'r').shape
+        data_info['default'] = {}
+        data_info['default']['shape'] = np.load(filepath, 'r').shape
     elif ext == '.npz':
         f = np.load(filepath, 'r')
         for key in f.keys():
-            if len(f[key].shape) in [2,3]:
-                data_info[key] = f[key].shape
+            if len(f[key].shape) in [1,2,3]:
+                data_info[key] = {}
+                data_info['shape'] = f[key].shape
+                if f[key].size == 1:
+                    data_info[key]['value'] = float(f[key])
+                else:
+                    data_info[key]['value'] = None
         f.close()
     elif ext == '.h5' or ext == '.cxi':
         f = h5py.File(filepath, 'r')
@@ -333,24 +339,41 @@ def get_data_info(filepath):
                 keys.append(key)
         f.visit(_get_all_dataset)
         for key in keys:
-            if len(f[key].shape) in [2,3]:
-                data_info[key] = f[key].shape
+            if len(f[key].shape) in [1,2,3]:
+                data_info[key] = {}
+                data_info[key]['shape'] = f[key].shape
+                if f[key].size == 1:
+                    data_info[key]['value'] = float(f[key].value)
+                else:
+                    data_info[key]['value'] = None
         f.close()
     elif ext == '.mat':
         try:
             f = sio.loadmat(filepath)
             for key in f.keys():
                 if isinstance(f[key], np.ndarray):
-                    if len(f[key].shape) in [2,3]:
-                        data_info[key] = f[key].shape
+                    if len(f[key].shape) in [1,2,3]:
+                        data_info[key] = {}
+                        data_info[key]['shape'] = f[key].shape
+                        if f[key].size == 1:
+                            data_info[key]['value'] = float(f[key].value)
+                        else:
+                            data_info[key]['value'] = None
+
         except NotImplementedError:  # v7.3 mat use h5py 
             f = h5py.File(filepath, 'r')
             for key in f.keys():
-                if len(f[key].shape) in [2,3]:
-                    data_info[key] = f[key].shape
+                if len(f[key].shape) in [1,2,3]:
+                    data_info[key] = {}
+                    data_info[key]['shape'] = f[key].shape
+                    if f[key].size == 1:
+                        data_info[key]['value'] = float(f[key].value)
+                    else:
+                        data_info[key]['value'] = None
             f.close()
     elif ext == '.tif':
-        data_info['default'] = np.asarray(Image.open(filepath)).shape
+        data_info['default'] = {}
+        data_info['default']['shape'] = np.asarray(Image.open(filepath)).shape
     return data_info
 
 

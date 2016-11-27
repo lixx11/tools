@@ -14,7 +14,7 @@ from PyQt4.QtGui import QMainWindow
 from PyQt4.QtCore import pyqtSlot
 import pyqtgraph as pg
 from pyqtgraph.parametertree import ParameterTree, Parameter
-from pyqtgraph import PlotDataItem
+from pyqtgraph import PlotDataItem, PlotItem
 from scipy.signal import savgol_filter, argrelmax, argrelmin
 from docopt import docopt
 from util import *
@@ -29,7 +29,9 @@ class MainWindow(QMainWindow):
         uic.loadUi(_dir + '/' + 'layout.ui', self)
         self.profileWidget.hide()
         self.smallDataWidget.hide()
-        self.splitter_3.setSizes([self.width()*0.7, self.width()*0.3])
+        self.splitter_3.setSizes([self.width()*0.7, self.width()*0.3])   # splitter between image_view/plot_widget and file list
+        self.splitter_2.setSizes([self.height() * 0.7, self.height() * 0.3])  # splitter between image_view and plot widget
+        self.splitter.setSizes([self.splitter.width()/3., self.splitter.width()/3., self.splitter.width()/3.])
         self.setAcceptDrops(True)
         self.fileList.setColumnWidth(0, 200)
 
@@ -39,6 +41,7 @@ class MainWindow(QMainWindow):
         self.dispData = None  # 2d data for plot
         self.dispShape = None
         self.mask = None
+        self.curve = None
         self.acceptedFileTypes = [u'npy', u'npz', u'h5', u'mat', u'cxi', u'tif']
 
         self.dispItem = self.imageView.getImageItem()
@@ -47,16 +50,24 @@ class MainWindow(QMainWindow):
         self.imageView.getView().addItem(self.ringItem)
         self.imageView.getView().addItem(self.centerMarkItem)
 
-        # basic operation
+        self.curveItem = PlotDataItem()
+        self.curveWidget.addItem(self.curveItem)
+        self.curveWidget.getPlotItem().setTitle(title='Curve Plot')
+
+        # basic operation for image and curve plot
+        self.showImage = True
         self.axis = 'x'
         self.frameIndex = 0
         self.maskFlag = False
         self.imageLog = False
         self.binaryFlag = False
+        self.FFT = False
+        self.FFTSHIFT = False
         self.dispThreshold = 0
         self.center = [0, 0]
         self.showRings = False
         self.ringRadiis = []
+        self.showCurvePlot = True
 
         self.profileItem = PlotDataItem(pen=pg.mkPen('y', width=1, style=QtCore.Qt.SolidLine), name='profile')
         self.smoothItem = PlotDataItem(pen=pg.mkPen('g', width=2, style=QtCore.Qt.DotLine), name='smoothed profile')
@@ -65,6 +76,7 @@ class MainWindow(QMainWindow):
         self.profileWidget.addItem(self.profileItem)
         self.profileWidget.addItem(self.smoothItem)
         self.profileWidget.addItem(self.thresholdItem)
+        self.profileWidget.getPlotItem().setTitle(title='Profile Plot')
         # profile option
         self.showProfile = False
         self.profileType = 'radial'
@@ -87,6 +99,7 @@ class MainWindow(QMainWindow):
         # small data option
         self.smallDataItem = pg.ScatterPlotItem()
         self.smallDataWidget.addItem(self.smallDataItem)
+        self.smallDataWidget.getPlotItem().setTitle(title='Small Data')
         self.showSmallData = False
         self.smallDataFile = None
         self.smallDataset = None
@@ -95,33 +108,45 @@ class MainWindow(QMainWindow):
         self.smallDataFrames = None
         self.smallData = None
         # display option
-        self.profileLog = False
         self.imageAutoRange = True
         self.imageAutoLevels = True
         self.imageAutoHistogramRange = True
-        self.plotAutoRange = True
+        self.curvePlotAutoRange = True
+        self.curvePlotLog = False
+        self.profilePlotAutoRange = True
+        self.profilePlotLog = False
+        self.smallDataPlotAutoRange = True
+        self.smallDataPlotLog = False
 
         params_list = [
-                        {'name': 'Image Info', 'type': 'group', 'children': [
+                        {'name': 'Data Info', 'type': 'group', 'children': [
                             {'name': 'File', 'type': 'str', 'value': 'not set', 'readonly': True},
                             {'name': 'Dataset', 'type': 'str', 'value': 'not set', 'readonly': True},
                             {'name': 'Mask', 'type': 'str', 'value': 'not set', 'readonly': True},
                             {'name': 'Image Shape', 'type': 'str', 'value': 'unknown', 'readonly': True},
-                            {'name': 'Friedel Score', 'type': 'float', 'readonly': True},
+                            {'name': 'Image Friedel Score', 'type': 'float', 'readonly': True},
+                            {'name': 'Curve Length', 'type': 'int', 'readonly': 'True'}
                         ]},
                         {'name': 'Basic Operation', 'type': 'group', 'children': [
-                            {'name': 'Axis', 'type': 'list', 'values': ['x','y','z'], 'value': self.axis},
-                            {'name': 'Frame Index', 'type': 'int', 'value': self.frameIndex},
-                            {'name': 'Apply Mask', 'type': 'bool', 'value': self.imageLog},
-                            {'name': 'Apply Log', 'type': 'bool', 'value': self.maskFlag},
-                            {'name': 'binaryzation', 'type': 'bool', 'value': self.binaryFlag},
-                            {'name': 'Threshold', 'type': 'float', 'value': self.dispThreshold},
-                            {'name': 'Center x', 'type': 'int', 'value': self.center[1]},
-                            {'name': 'Center y', 'type': 'int', 'value': self.center[0]},
-                            {'name': 'Show Rings', 'type': 'bool'},
-                            {'name': 'Ring Radiis', 'type': 'str', 'value': ''},
+                            {'name': 'Image', 'type': 'group', 'children': [
+                                {'name': 'Axis', 'type': 'list', 'values': ['x','y','z'], 'value': self.axis},
+                                {'name': 'Frame Index', 'type': 'int', 'value': self.frameIndex},
+                                {'name': 'Apply Mask', 'type': 'bool', 'value': self.imageLog},
+                                {'name': 'Apply Log', 'type': 'bool', 'value': self.maskFlag},
+                                {'name': 'Apply FFT', 'type': 'bool', 'value': self.FFT},
+                                {'name': 'Apply FFT-SHIFT', 'type': 'bool', 'value': self.FFTSHIFT},
+                                {'name': 'Binaryzation', 'type': 'bool', 'value': self.binaryFlag},
+                                {'name': 'Threshold', 'type': 'float', 'value': self.dispThreshold},
+                                {'name': 'Center x', 'type': 'int', 'value': self.center[1]},
+                                {'name': 'Center y', 'type': 'int', 'value': self.center[0]},
+                                {'name': 'Show Rings', 'type': 'bool'},
+                                {'name': 'Ring Radiis', 'type': 'str', 'value': ''},
+                            ]},
+                            {'name': 'Curve Plot', 'type': 'group', 'children': [
+                                {'name': 'TODO', 'type': 'str'},
+                            ]}
                         ]},
-                        {'name': 'Feature Profile', 'type': 'group', 'children': [
+                        {'name': 'Image to Feature Profile', 'type': 'group', 'children': [
                             {'name': 'Show Profile', 'type': 'bool', 'value': self.showProfile},
                             {'name': 'Feature', 'type': 'list', 'values': ['radial','angular', 'across center line'], 'value': self.profileType},
                             {'name': 'Profile Mode', 'type': 'list', 'values': ['sum','mean'], 'value': self.profileMode},
@@ -152,18 +177,26 @@ class MainWindow(QMainWindow):
                             {'name': 'Sort', 'type': 'bool', 'value': self.smallDataSorted},
                         ]},
                         {'name': 'Display Option', 'type': 'group', 'children': [
-                            {'name': 'Image Option', 'type': 'group', 'children': [
+                            {'name': 'Image', 'type': 'group', 'children': [
                                 {'name': 'autoRange', 'type': 'bool', 'value': self.imageAutoRange},
                                 {'name': 'autoLevels', 'type': 'bool', 'value': self.imageAutoLevels},
                                 {'name': 'autoHistogramRange', 'type': 'bool', 'value': self.imageAutoHistogramRange},
                             ]},
-                            {'name': 'Plot Option', 'type': 'group',  'children': [
-                                {'name': 'autoRange', 'type': 'bool', 'value': self.plotAutoRange},
-                                {'name': 'Log', 'type': 'bool', 'value': self.profileLog},
+                            {'name': 'Curve Plot', 'type': 'group',  'children': [
+                                {'name': 'autoRange', 'type': 'bool', 'value': self.curvePlotAutoRange},
+                                {'name': 'Log', 'type': 'bool', 'value': self.curvePlotLog},
+                            ]},
+                            {'name': 'Profile Plot', 'type': 'group', 'children': [
+                                {'name': 'autoRange', 'type': 'bool', 'value': self.profilePlotAutoRange},
+                                {'name': 'Log', 'type': 'bool', 'value': self.profilePlotLog},
+                            ]},
+                            {'name': 'Small Data Plot', 'type': 'group', 'children': [
+                                {'name': 'autoRange', 'type': 'bool', 'value': self.smallDataPlotAutoRange},
+                                {'name': 'Log', 'type': 'bool', 'value': self.smallDataPlotLog},
                             ]},
                         ]}
                       ]
-        self.params = Parameter.create(name='', type='group', children=params_list)
+        self.params = Parameter.create(name='params', type='group', children=params_list)
         self.parameterTree.setParameters(self.params, showTop=False)
 
         self.fileList.itemDoubleClicked.connect(self.changeDatasetSlot)
@@ -172,42 +205,49 @@ class MainWindow(QMainWindow):
         self.smallDataItem.sigClicked.connect(self.smallDataClicked)
         self.lineEdit.returnPressed.connect(self.addFilesSlot)
 
-        self.params.param('Basic Operation', 'Axis').sigValueChanged.connect(self.axisChangedSlot)
-        self.params.param('Basic Operation', 'Frame Index').sigValueChanged.connect(self.frameIndexChangedSlot)
-        self.params.param('Basic Operation', 'Apply Mask').sigValueChanged.connect(self.applyMaskSlot)
-        self.params.param('Basic Operation', 'Apply Log').sigValueChanged.connect(self.applyImageLogSlot)
-        self.params.param('Basic Operation', 'binaryzation').sigValueChanged.connect(self.binaryImageSlot)
-        self.params.param('Basic Operation', 'Threshold').sigValueChanged.connect(self.setDispThresholdSlot)
-        self.params.param('Basic Operation', 'Center x').sigValueChanged.connect(self.centerXChangedSlot)
-        self.params.param('Basic Operation', 'Center y').sigValueChanged.connect(self.centerYChangedSlot)
-        self.params.param('Basic Operation', 'Show Rings').sigValueChanged.connect(self.showRingsSlot)
-        self.params.param('Basic Operation', 'Ring Radiis').sigValueChanged.connect(self.ringRadiiSlot)
+        self.params.param('Basic Operation', 'Image', 'Axis').sigValueChanged.connect(self.axisChangedSlot)
+        self.params.param('Basic Operation', 'Image', 'Frame Index').sigValueChanged.connect(self.frameIndexChangedSlot)
+        self.params.param('Basic Operation', 'Image', 'Apply Mask').sigValueChanged.connect(self.applyMaskSlot)
+        self.params.param('Basic Operation', 'Image', 'Apply Log').sigValueChanged.connect(self.applyImageLogSlot)
+        self.params.param('Basic Operation', 'Image', 'Binaryzation').sigValueChanged.connect(self.binaryImageSlot)
+        self.params.param('Basic Operation', 'Image', 'Apply FFT').sigValueChanged.connect(self.applyFFTSlot)
+        self.params.param('Basic Operation', 'Image', 'Apply FFT-SHIFT').sigValueChanged.connect(self.applyFFTSHIFTSlot)
+        self.params.param('Basic Operation', 'Image', 'Binaryzation').sigValueChanged.connect(self.binaryImageSlot)
+        self.params.param('Basic Operation', 'Image', 'Threshold').sigValueChanged.connect(self.setDispThresholdSlot)
+        self.params.param('Basic Operation', 'Image', 'Center x').sigValueChanged.connect(self.centerXChangedSlot)
+        self.params.param('Basic Operation', 'Image', 'Center y').sigValueChanged.connect(self.centerYChangedSlot)
+        self.params.param('Basic Operation', 'Image', 'Show Rings').sigValueChanged.connect(self.showRingsSlot)
+        self.params.param('Basic Operation', 'Image', 'Ring Radiis').sigValueChanged.connect(self.ringRadiiSlot)
 
-        self.params.param('Feature Profile', 'Show Profile').sigValueChanged.connect(self.showProfileSlot)
-        self.params.param('Feature Profile', 'Feature').sigValueChanged.connect(self.setProfileTypeSlot)
-        self.params.param('Feature Profile', 'Profile Mode').sigValueChanged.connect(self.setProfileModeSlot)
-        self.params.param('Feature Profile', 'Angular Option', 'R min').sigValueChanged.connect(self.setAngularRminSlot)
-        self.params.param('Feature Profile', 'Angular Option', 'R max').sigValueChanged.connect(self.setAngularRmaxSlot)
-        self.params.param('Feature Profile', 'Across Center Line Option', 'Angle').sigValueChanged.connect(self.setLineAngleSlot)
-        self.params.param('Feature Profile', 'Across Center Line Option', 'Width/pixel').sigValueChanged.connect(self.setLineWidthSlot)
-        self.params.param('Feature Profile', 'Smoothing', 'Enable Smoothing').sigValueChanged.connect(self.setSmoothSlot)
-        self.params.param('Feature Profile', 'Smoothing', 'Window Size').sigValueChanged.connect(self.setWinSizeSlot)
-        self.params.param('Feature Profile', 'Smoothing', 'Poly-Order').sigValueChanged.connect(self.setPolyOrderSlot)
-        self.params.param('Feature Profile', 'Extrema Search', 'Enable Extrema Search').sigValueChanged.connect(self.setExtremaSearchSlot)
-        self.params.param('Feature Profile', 'Extrema Search', 'Extrema Type').sigValueChanged.connect(self.setExtremaTypeSlot)
-        self.params.param('Feature Profile', 'Extrema Search', 'Extrema WinSize').sigValueChanged.connect(self.setExtremaWinSizeSlot)
-        self.params.param('Feature Profile', 'Extrema Search', 'Extrema Threshold').sigValueChanged.connect(self.setExtremaThresholdSlot)
+        self.params.param('Image to Feature Profile', 'Show Profile').sigValueChanged.connect(self.showProfileSlot)
+        self.params.param('Image to Feature Profile', 'Feature').sigValueChanged.connect(self.setProfileTypeSlot)
+        self.params.param('Image to Feature Profile', 'Profile Mode').sigValueChanged.connect(self.setProfileModeSlot)
+        self.params.param('Image to Feature Profile', 'Angular Option', 'R min').sigValueChanged.connect(self.setAngularRminSlot)
+        self.params.param('Image to Feature Profile', 'Angular Option', 'R max').sigValueChanged.connect(self.setAngularRmaxSlot)
+        self.params.param('Image to Feature Profile', 'Across Center Line Option', 'Angle').sigValueChanged.connect(self.setLineAngleSlot)
+        self.params.param('Image to Feature Profile', 'Across Center Line Option', 'Width/pixel').sigValueChanged.connect(self.setLineWidthSlot)
+        self.params.param('Image to Feature Profile', 'Smoothing', 'Enable Smoothing').sigValueChanged.connect(self.setSmoothSlot)
+        self.params.param('Image to Feature Profile', 'Smoothing', 'Window Size').sigValueChanged.connect(self.setWinSizeSlot)
+        self.params.param('Image to Feature Profile', 'Smoothing', 'Poly-Order').sigValueChanged.connect(self.setPolyOrderSlot)
+        self.params.param('Image to Feature Profile', 'Extrema Search', 'Enable Extrema Search').sigValueChanged.connect(self.setExtremaSearchSlot)
+        self.params.param('Image to Feature Profile', 'Extrema Search', 'Extrema Type').sigValueChanged.connect(self.setExtremaTypeSlot)
+        self.params.param('Image to Feature Profile', 'Extrema Search', 'Extrema WinSize').sigValueChanged.connect(self.setExtremaWinSizeSlot)
+        self.params.param('Image to Feature Profile', 'Extrema Search', 'Extrema Threshold').sigValueChanged.connect(self.setExtremaThresholdSlot)
 
         self.params.param('Small Data', 'Filepath').sigValueChanged.connect(self.setSmallDataFilepathSlot)
         self.params.param('Small Data', 'Dataset').sigValueChanged.connect(self.setSmallDatasetSlot)
         self.params.param('Small Data', 'Show data').sigValueChanged.connect(self.showSmallDataSlot)
         self.params.param('Small Data', 'Sort').sigValueChanged.connect(self.sortSmallDataSlot)
 
-        self.params.param('Display Option', 'Image Option', 'autoRange').sigValueChanged.connect(self.imageAutoRangeSlot)
-        self.params.param('Display Option', 'Image Option', 'autoLevels').sigValueChanged.connect(self.imageAutoLevelsSlot)
-        self.params.param('Display Option', 'Image Option', 'autoHistogramRange').sigValueChanged.connect(self.imageAutoHistogramRangeSlot)
-        self.params.param('Display Option', 'Plot Option', 'autoRange').sigValueChanged.connect(self.plotAutoRangeSlot)
-        self.params.param('Display Option', 'Plot Option', 'Log').sigValueChanged.connect(self.setLogModeSlot)
+        self.params.param('Display Option', 'Image', 'autoRange').sigValueChanged.connect(self.imageAutoRangeSlot)
+        self.params.param('Display Option', 'Image', 'autoLevels').sigValueChanged.connect(self.imageAutoLevelsSlot)
+        self.params.param('Display Option', 'Image', 'autoHistogramRange').sigValueChanged.connect(self.imageAutoHistogramRangeSlot)
+        self.params.param('Display Option', 'Curve Plot', 'autoRange').sigValueChanged.connect(self.curvePlotAutoRangeSlot)
+        self.params.param('Display Option', 'Curve Plot', 'Log').sigValueChanged.connect(self.curvePlotLogModeSlot)
+        self.params.param('Display Option', 'Profile Plot', 'autoRange').sigValueChanged.connect(self.profilePlotAutoRangeSlot)
+        self.params.param('Display Option', 'Profile Plot', 'Log').sigValueChanged.connect(self.profilePlotLogModeSlot)
+        self.params.param('Display Option', 'Small Data Plot', 'autoRange').sigValueChanged.connect(self.smallDataPlotAutoRangeSlot)
+        self.params.param('Display Option', 'Small Data Plot', 'Log').sigValueChanged.connect(self.smallDataPlotLogModeSlot)
 
     def addFilesSlot(self):
         filePattern = str(self.lineEdit.text())
@@ -247,6 +287,10 @@ class MainWindow(QMainWindow):
     def showSmallDataSlot(self, _, showSmallData):
         print_with_timestamp('set show small data: %s' % str(showSmallData))
         self.showSmallData = showSmallData
+        if self.showSmallData:
+            self.smallDataWidget.show()
+        else:
+            self.smallDataWidget.hide()
         self.maybeShowSmallData()
 
     def sortSmallDataSlot(self, _, sort):
@@ -291,8 +335,15 @@ class MainWindow(QMainWindow):
     def loadData(self, filepath, datasetName):
         self.filepath = str(filepath)
         basename = os.path.basename(self.filepath)
-        self.imageData = load_data(self.filepath, datasetName)
-        self.imageShape = self.imageData.shape
+        data = load_data(self.filepath, datasetName)
+        if len(data.shape) == 1:  # 1d curve
+            if data.size == 1:  # single number
+                return None
+            else:
+                self.curve = data
+                return None
+        self.imageData = data
+        self.imageShape = data.shape
         _shape_str = ''
         if len(self.imageShape) == 2:
             _x, _y = self.imageShape
@@ -300,9 +351,9 @@ class MainWindow(QMainWindow):
         elif len(self.imageShape) == 3:
             _x, _y, _z = self.imageShape
             _shape_str = 'x: %d, y: %d, z: %d' %(_x, _y, _z)
-        self.params.param('Image Info', 'Image Shape').setValue(_shape_str)
-        self.params.param('Image Info', 'File').setValue(basename)
-        self.params.param('Image Info', 'Dataset').setValue(datasetName)
+        self.params.param('Data Info', 'Image Shape').setValue(_shape_str)
+        self.params.param('Data Info', 'File').setValue(basename)
+        self.params.param('Data Info', 'Dataset').setValue(datasetName)
         if len(self.imageShape) == 3:
             self.dispShape = self.imageData.shape[1:3]
         else:
@@ -311,8 +362,8 @@ class MainWindow(QMainWindow):
         self.setCenterInfo()
 
     def setCenterInfo(self):
-        self.params.param('Basic Operation', 'Center x').setValue(self.center[0])
-        self.params.param('Basic Operation', 'Center y').setValue(self.center[1])
+        self.params.param('Basic Operation', 'Image', 'Center x').setValue(self.center[0])
+        self.params.param('Basic Operation', 'Image', 'Center y').setValue(self.center[1])
 
     def calcCenter(self):
         if len(self.imageShape) == 2:
@@ -329,17 +380,10 @@ class MainWindow(QMainWindow):
 
     def maybeShowSmallData(self):
         if self.showSmallData:
-            print_with_timestamp('show small data!!')
             if not self.smallDataWidget.isVisible():
                 self.smallDataWidget.show()
-                if self.profileWidget.isVisible():
-                    self.splitter.setSizes([self.splitter.width()*0.5, self.splitter.width()*0.5])
-                else:
-                    self.splitter_2.setSizes([self.height() * 0.7, self.height() * 0.3])
-            self.smallDataWidget.setTitle('Small Data')
             self.smallDataWidget.setLabels(bottom='index', left='metric')
             if self.smallDataFile is not None and self.smallDataset is not None:
-                print_with_timestamp('showing small data set')
                 paths, frames, smallData = load_smalldata(self.smallDataFile, self.smallDataset)
                 self.smallDataPaths = paths
                 self.smallDataFrames = frames
@@ -349,24 +393,18 @@ class MainWindow(QMainWindow):
                     self.smallDataItem.setData(x=np.arange(self.smallData.size), y=self.smallData[index_array])
                 else:
                     self.smallDataItem.setData(x=np.arange(self.smallData.size), y=self.smallData)
-        else:
-            self.smallDataWidget.hide()
-
+            
     def maybePlotProfile(self):
         if self.showProfile:
             print_with_timestamp("OK, I'll plot %s profile" %self.profileType)
             if not self.profileWidget.isVisible():
                 self.profileWidget.show()
-                if self.smallDataWidget.isVisible():
-                    self.splitter.setSizes([self.splitter.width() * 0.5, self.splitter.width() * 0.5])
-                else:
-                    self.splitter_2.setSizes([self.height()*0.7, self.height()*0.3])
             viewBox = self.profileWidget.getViewBox()
-            if self.plotAutoRange:
+            if self.profilePlotAutoRange:
                 viewBox.enableAutoRange()
             else:
                 viewBox.disableAutoRange()
-            if self.profileLog == True:
+            if self.profilePlotLog == True:
                 self.profileWidget.setLogMode(y=True)
             else:
                 self.profileWidget.setLogMode(y=False)
@@ -383,7 +421,7 @@ class MainWindow(QMainWindow):
                     profile = calc_angular_profile(self.dispData, self.center, mask=mask*annulus_mask, mode=self.profileMode)
                 else:  # across center line
                     profile = calc_across_center_line_profile(self.dispData, self.center, angle=self.lineAngle, width=self.lineWidth, mask=self.mask, mode=self.profileMode)
-                if self.profileLog == True:
+                if self.profilePlotLog == True:
                     profile[profile < 1.] = 1.
                 self.profileItem.setData(profile)
                 if self.profileType == 'radial':
@@ -397,7 +435,7 @@ class MainWindow(QMainWindow):
                   self.profileWidget.setLabels(bottom='index/pixel')
                 if self.smoothFlag == True:
                     smoothed_profile = savgol_filter(profile, self.smoothWinSize, self.polyOrder)
-                    if self.profileLog == True:
+                    if self.profilePlotLog == True:
                         smoothed_profile[smoothed_profile < 1.] = 1.
                     self.smoothItem.setData(smoothed_profile)
                 else:
@@ -445,15 +483,18 @@ class MainWindow(QMainWindow):
             dispData = dispData.copy()
         else:
             dispData = np.asarray(dispData).copy()
-        if self.imageLog == True:
+        if self.imageLog:
             dispData[dispData<1.] = 1.
             dispData = np.log(dispData)
+        if self.FFT:
+            dispData = np.fft.fft2(dispData)
+        if self.FFTSHIFT:
+            dispData = np.fft.fftshift(dispData)
         return dispData
 
     def closeEvent(self, event):
         reply = QtGui.QMessageBox.question(self, 'Message',
             "Are you sure to quit?", QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
-
         if reply == QtGui.QMessageBox.Yes:
             print_with_timestamp('Bye-Bye.')
             pg.exit()
@@ -468,15 +509,21 @@ class MainWindow(QMainWindow):
             assert isinstance(item, FileItem)
             fileItem = item
             datasetItem = fileItem.child(0)
-        self.loadData(fileItem.filepath, datasetItem.datasetName)
-        self.center = self.calcCenter()
-        self.setCenterInfo()
-        self.changeDisp()
+        self.loadData(fileItem.filepath, datasetItem.datasetName)  # maybe 1d, 2d or 3d dataset
+        self.maybeChangeCurve(name=datasetItem.datasetName)
+        self.maybeChangeDisp()
         self.maybePlotProfile()
 
-    def changeDisp(self):
-        if self.imageData is None:
-            return
+    def maybeChangeCurve(self, name=None):
+        if not self.showCurvePlot or self.curve is None:
+            return None
+        self.curveItem.setData(self.curve)
+        if name is not None:
+            self.curveWidget.getPlotItem().setTitle('Curve Plot -- %s' %name)
+
+    def maybeChangeDisp(self):
+        if not self.showImage or self.imageData is None:
+            return None
         dispData = self.calcDispData()
         self.dispShape = dispData.shape
         if self.maskFlag:
@@ -497,7 +544,7 @@ class MainWindow(QMainWindow):
                 self.ringItem.setData(_cx, _cy, size=self.ringRadiis*2., symbol='o', brush=(255,255,255,0), pen='r', pxMode=False)
         self.centerMarkItem.setData([self.center[0]], [self.center[1]], size=10, symbol='+', brush=(255,255,255,0), pen='r', pxMode=False)
         Friedel_score = calc_Friedel_score(self.dispData, self.center, mask=self.mask, mode='relative')
-        self.params.param('Image Info', 'Friedel Score').setValue(Friedel_score)
+        self.params.param('Data Info', 'Image Friedel Score').setValue(Friedel_score)
 
     def setLineAngleSlot(self, _, lineAngle):
         print_with_timestamp('set line angle: %s' %str(lineAngle))
@@ -512,7 +559,19 @@ class MainWindow(QMainWindow):
     def applyImageLogSlot(self, _, imageLog):
         print_with_timestamp('set image log: %s' %str(imageLog))
         self.imageLog = imageLog
-        self.changeDisp()
+        self.maybeChangeDisp()
+        self.maybePlotProfile()
+
+    def applyFFTSlot(self, _, FFT):
+        print_with_timestamp('set image fft: %s' %str(FFT))
+        self.FFT = FFT
+        self.maybeChangeDisp()
+        self.maybePlotProfile()
+
+    def applyFFTSHIFTSlot(self, _, FFTSHIFT):
+        print_with_timestamp('set image fft-shift: %s' %str(FFTSHIFT))
+        self.FFTSHIFT = FFTSHIFT
+        self.maybeChangeDisp()
         self.maybePlotProfile()
 
     def setExtremaSearchSlot(self, _, extremaSearch):
@@ -540,35 +599,34 @@ class MainWindow(QMainWindow):
         self.axis = axis
         self.center = self.calcCenter()
         self.setCenterInfo()
-        self.changeDisp()
+        self.maybeChangeDisp()
         self.maybePlotProfile()
 
     def frameIndexChangedSlot(self, _, frameIndex):
         print_with_timestamp('frame index changed')
         self.frameIndex = frameIndex
-        self.changeDisp()
+        self.maybeChangeDisp()
         self.maybePlotProfile()
 
     def showProfileSlot(self, _, showProfile):
         print_with_timestamp('show or hide radial profile changed')
         self.showProfile = showProfile
-        self.maybePlotProfile()
-
-    def setLogModeSlot(self, _, log):
-        print_with_timestamp('log mode changed')
-        self.profileLog = log
+        if self.showProfile:
+            self.profileWidget.show()
+        else:
+            self.profileWidget.hide()
         self.maybePlotProfile()
 
     def centerXChangedSlot(self, _, centerX):
         print_with_timestamp('center X changed')
         self.center[0] = centerX
-        self.changeDisp()
+        self.maybeChangeDisp()
         self.maybePlotProfile()
 
     def centerYChangedSlot(self, _, centerY):
         print_with_timestamp('center Y changed')
         self.center[1] = centerY
-        self.changeDisp()
+        self.maybeChangeDisp()
         self.maybePlotProfile()
 
     def showFileMenuSlot(self, position):
@@ -583,7 +641,7 @@ class MainWindow(QMainWindow):
                 if len(mask.shape) != 2:
                     raise ValueError('%s:%s can not be used as mask. Mask data must be 2d.' %(filepath, item.datasetName))
                 self.mask = np.asarray(mask)
-                self.params.param('Image Info', 'Mask').setValue("%s::%s" %(os.path.basename(filepath), item.datasetName))
+                self.params.param('Data Info', 'Mask').setValue("%s::%s" %(os.path.basename(filepath), item.datasetName))
         elif isinstance(item, FileItem):
             deleteAction = fileMenu.addAction("Delete")
             action = fileMenu.exec_(self.fileList.mapToGlobal(position))
@@ -593,35 +651,58 @@ class MainWindow(QMainWindow):
                     self.fileList.takeTopLevelItem(self.fileList.indexOfTopLevelItem(item))
 
     def applyMaskSlot(self, _, mask):
-        print_with_timestamp('turn on mask: %s' %str(mask))
+        print_with_timestamp('turn on mask: %s' % str(mask))
         self.maskFlag = mask
-        self.changeDisp()
+        self.maybeChangeDisp()
         self.maybePlotProfile()
 
     def imageAutoRangeSlot(self, _, imageAutoRange):
-        print_with_timestamp('set image autorange: %s' %str(imageAutoRange))
+        print_with_timestamp('set image autorange: %s' % str(imageAutoRange))
         self.imageAutoRange = imageAutoRange
-        self.changeDisp()
+        self.maybeChangeDisp()
 
     def imageAutoLevelsSlot(self, _, imageAutoLevels):
-        print_with_timestamp('set image autolevels: %s' %str(imageAutoLevels))
+        print_with_timestamp('set image autolevels: %s' % str(imageAutoLevels))
         self.imageAutoLevels = imageAutoLevels
-        self.changeDisp()
+        self.maybeChangeDisp()
 
     def imageAutoHistogramRangeSlot(self, _, imageAutoHistogramRange):
-        print_with_timestamp('set image autohistogram: %s' %str(imageAutoHistogramRange))
+        print_with_timestamp('set image autohistogram: %s' % str(imageAutoHistogramRange))
         self.imageAutoHistogramRange = imageAutoHistogramRange
-        self.changeDisp()
+        self.maybeChangeDisp()
 
-    def plotAutoRangeSlot(self, _, plotAutoRange):
-        print_with_timestamp('set plot autorange: %s' %str(plotAutoRange))
-        self.plotAutoRange = plotAutoRange
+    def curvePlotAutoRangeSlot(self, _, plotAutoRange):
+        print_with_timestamp('set curve plot autorange: %s' % str(plotAutoRange))
+        self.curvePlotAutoRange = plotAutoRange
+
+    def curvePlotLogModeSlot(self, _, log):
+        print_with_timestamp('set curve plot log mode: %s' % str(log))
+        self.curvePlotLog = log
+
+    def profilePlotAutoRangeSlot(self, _, plotAutoRange):
+        print_with_timestamp('set profile plot autorange: %s' % str(plotAutoRange))
+        self.profilePlotAutoRange = plotAutoRange
         self.maybePlotProfile()
+
+    def profilePlotLogModeSlot(self, _, log):
+        print_with_timestamp('set profile plot log mode: %s' % str(log))
+        self.profilePlotLog = log
+        self.maybePlotProfile()
+
+    def smallDataPlotAutoRangeSlot(self, _, plotAutoRange):
+        print_with_timestamp('set small data plot autorange: %s' % str(plotAutoRange))
+        self.smallDataPlotAutoRange = plotAutoRange
+
+    def smallDataPlotLogModeSlot(self, _, log):
+        print_with_timestamp('set small data log mode: %s' % str(log))
+        self.smallDataPlotLog = log
 
     def showRingsSlot(self, _, showRings):
         print_with_timestamp('show rings: %s' %showRings)
         self.showRings = showRings
-        self.changeDisp()
+        if not self.showRings:
+            self.ringItem.clear()
+        self.maybeChangeDisp()
 
     def ringRadiiSlot(self, _, ringRadiis):
         print_with_timestamp('set ring radiis: %s' %str(ringRadiis))
@@ -630,7 +711,7 @@ class MainWindow(QMainWindow):
         for ringRadiisStr in ringRadiisStrList:
             ringRadiis.append(float(ringRadiisStr))
         self.ringRadiis = np.asarray(ringRadiis)
-        self.changeDisp()
+        self.maybeChangeDisp()
 
     def setProfileTypeSlot(self, _, profileType):
         print_with_timestamp('set profile type: %s' %str(profileType))
@@ -643,21 +724,21 @@ class MainWindow(QMainWindow):
         self.maybePlotProfile()
 
     def binaryImageSlot(self, _, binaryImage):
-        print_with_timestamp('apply binaryzation: %s' %str(binaryImage))
+        print_with_timestamp('apply Binaryzation: %s' %str(binaryImage))
         self.binaryFlag = binaryImage
-        self.changeDisp()
+        self.maybeChangeDisp()
         self.maybePlotProfile()
 
     def setDispThresholdSlot(self, _, threshold):
         print_with_timestamp('set disp threshold: %.1f' %threshold)
         self.dispThreshold = threshold
-        self.changeDisp()
+        self.maybeChangeDisp()
         self.maybePlotProfile()
 
     def setSmoothSlot(self, _, smooth):
         print_with_timestamp('set smooth: %s' %str(smooth))
         self.smoothFlag = smooth
-        self.changeDisp()
+        self.maybeChangeDisp()
         self.maybePlotProfile()
 
     def setWinSizeSlot(self, _, winSize):
@@ -666,25 +747,25 @@ class MainWindow(QMainWindow):
             winSize += 1  # winSize must be odd
         print_with_timestamp('set smooth winsize: %d' %winSize)
         self.smoothWinSize = winSize
-        self.changeDisp()
+        self.maybeChangeDisp()
         self.maybePlotProfile()
 
     def setPolyOrderSlot(self, _, polyOrder):
         print_with_timestamp('set poly order: %d' %polyOrder)
         self.polyOrder = polyOrder
-        self.changeDisp()
+        self.maybeChangeDisp()
         self.maybePlotProfile()
 
     def setAngularRminSlot(self, _, Rmin):
         print_with_timestamp('set angular Rmin to %.1f' %Rmin)
         self.angularRmin = Rmin
-        self.changeDisp()
+        self.maybeChangeDisp()
         self.maybePlotProfile()
 
     def setAngularRmaxSlot(self, _, Rmax):
         print_with_timestamp('set angular Rmax to %.1f' %Rmax)
         self.angularRmax = Rmax
-        self.changeDisp()
+        self.maybeChangeDisp()
         self.maybePlotProfile()
 
     def mouseMoved(self, pos):
@@ -743,18 +824,21 @@ class FileItem(QtGui.QTreeWidgetItem):
     def initDatasets(self):
         dataInfo = get_data_info(self.filepath)
         for key in dataInfo.keys():
-            datasetItem = DatasetItem(parent=self, datasetName=key, datasetShape=dataInfo[key])
+            datasetItem = DatasetItem(parent=self, datasetName=key, datasetShape=dataInfo[key]['shape'], datasetValue=dataInfo[key]['value'])
             self.addChild(datasetItem)
 
 
 class DatasetItem(QtGui.QTreeWidgetItem):
     """docstring for DatasetItem"""
-    def __init__(self, parent=None, datasetName=None, datasetShape=None):
+    def __init__(self, parent=None, datasetName=None, datasetShape=None, datasetValue=None):
         super(DatasetItem, self).__init__(parent)
         self.datasetName = datasetName
         self.datasetShape = datasetShape
+        self.datasetValue = datasetValue
         self.setText(0, self.datasetName)
         self.setText(1, str(self.datasetShape))
+        if datasetValue is not None:
+            self.setText(2, str(self.datasetValue))
 
 
 if __name__ == '__main__':
@@ -766,7 +850,7 @@ if __name__ == '__main__':
     app = QtGui.QApplication(sys.argv)
     win = MainWindow()
     win.resize(900, 600)
-    win.setWindowTitle("Image Viewer")
+    win.setWindowTitle("Scientific Data Viewer")
 
     win.show()
     app.exec_()

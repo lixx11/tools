@@ -54,6 +54,7 @@
         <property name="orientation">
          <enum>Qt::Horizontal</enum>
         </property>
+        <widget class="MyPlotWidget" name="curveWidget"/>
         <widget class="MyPlotWidget" name="profileWidget"/>
         <widget class="MyPlotWidget" name="smallDataWidget"/>
        </widget>
@@ -66,7 +67,7 @@
         <enum>QTabWidget::Rounded</enum>
        </property>
        <property name="currentIndex">
-        <number>0</number>
+        <number>1</number>
        </property>
        <property name="iconSize">
         <size>
@@ -109,6 +110,11 @@
              <column>
               <property name="text">
                <string>Shape</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>Value</string>
               </property>
              </column>
             </widget>
@@ -168,22 +174,22 @@
   <customwidget>
    <class>MyImageView</class>
    <extends>QGraphicsView</extends>
-   <header>image_viewer</header>
+   <header>data_viewer</header>
   </customwidget>
   <customwidget>
    <class>MyPlotWidget</class>
    <extends>QGraphicsView</extends>
-   <header>image_viewer</header>
+   <header>data_viewer</header>
   </customwidget>
   <customwidget>
    <class>MyParameterTree</class>
    <extends>QTreeWidget</extends>
-   <header>image_viewer</header>
+   <header>data_viewer</header>
   </customwidget>
   <customwidget>
    <class>DatasetTreeWidget</class>
    <extends>QTreeWidget</extends>
-   <header>image_viewer</header>
+   <header>data_viewer</header>
   </customwidget>
  </customwidgets>
  <resources/>
