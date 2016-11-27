@@ -487,7 +487,7 @@ class MainWindow(QMainWindow):
             dispData[dispData<1.] = 1.
             dispData = np.log(dispData)
         if self.FFT:
-            dispData = np.fft.fft2(dispData)
+            dispData = np.abs(np.fft.fft2(dispData))
         if self.FFTSHIFT:
             dispData = np.fft.fftshift(dispData)
         return dispData

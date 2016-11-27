@@ -143,13 +143,7 @@
         </attribute>
         <layout class="QVBoxLayout" name="verticalLayout_2">
          <item>
-          <widget class="MyParameterTree" name="parameterTree">
-           <column>
-            <property name="text">
-             <string notr="true">1</string>
-            </property>
-           </column>
-          </widget>
+          <widget class="MyParameterTree" name="parameterTree"/>
          </item>
         </layout>
        </widget>

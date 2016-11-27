@@ -323,7 +323,7 @@ def get_data_info(filepath):
     elif ext == '.npz':
         f = np.load(filepath, 'r')
         for key in f.keys():
-            if len(f[key].shape) in [1,2,3]:
+            if len(f[key].shape) in [0,1,2,3]:
                 data_info[key] = {}
                 data_info['shape'] = f[key].shape
                 if f[key].size == 1:
@@ -339,11 +339,12 @@ def get_data_info(filepath):
                 keys.append(key)
         f.visit(_get_all_dataset)
         for key in keys:
-            if len(f[key].shape) in [1,2,3]:
+            print key, f[key], f[key].shape, len(f[key].shape)
+            if len(f[key].shape) in [0,1,2,3]:
                 data_info[key] = {}
                 data_info[key]['shape'] = f[key].shape
                 if f[key].size == 1:
-                    data_info[key]['value'] = float(f[key].value)
+                    data_info[key]['value'] = f[key].value
                 else:
                     data_info[key]['value'] = None
         f.close()
@@ -352,7 +353,7 @@ def get_data_info(filepath):
             f = sio.loadmat(filepath)
             for key in f.keys():
                 if isinstance(f[key], np.ndarray):
-                    if len(f[key].shape) in [1,2,3]:
+                    if len(f[key].shape) in [0,1,2,3]:
                         data_info[key] = {}
                         data_info[key]['shape'] = f[key].shape
                         if f[key].size == 1:
@@ -363,7 +364,7 @@ def get_data_info(filepath):
         except NotImplementedError:  # v7.3 mat use h5py 
             f = h5py.File(filepath, 'r')
             for key in f.keys():
-                if len(f[key].shape) in [1,2,3]:
+                if len(f[key].shape) in [0,1,2,3]:
                     data_info[key] = {}
                     data_info[key]['shape'] = f[key].shape
                     if f[key].size == 1:
