@@ -318,14 +318,19 @@ def get_data_info(filepath):
     _, ext = os.path.splitext(filepath)
     data_info = {}
     if ext == '.npy':
+        data = np.load(filepath, 'r')
         data_info['default'] = {}
-        data_info['default']['shape'] = np.load(filepath, 'r').shape
+        data_info['default']['shape'] = data.shape
+        if data.size == 1:
+            data_info['default']['value'] = data 
+        else:
+            data_info['default']['value'] = None
     elif ext == '.npz':
         f = np.load(filepath, 'r')
         for key in f.keys():
             if len(f[key].shape) in [0,1,2,3]:
                 data_info[key] = {}
-                data_info['shape'] = f[key].shape
+                data_info[key]['shape'] = f[key].shape
                 if f[key].size == 1:
                     data_info[key]['value'] = float(f[key])
                 else:
@@ -373,8 +378,10 @@ def get_data_info(filepath):
                         data_info[key]['value'] = None
             f.close()
     elif ext == '.tif':
+        data = np.asarray(Image.open(filepath))
         data_info['default'] = {}
-        data_info['default']['shape'] = np.asarray(Image.open(filepath)).shape
+        data_info['default']['shape'] = data.shape
+        data_info['default']['value'] = None
     return data_info
 
 

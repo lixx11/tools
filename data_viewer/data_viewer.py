@@ -286,8 +286,8 @@ class MainWindow(QMainWindow):
 
     def showSmallDataSlot(self, _, showSmallData):
         print_with_timestamp('set show small data: %s' % str(showSmallData))
-        self.showSmallData = showSmallData
-        if self.showSmallData:
+        # self.showSmallData = showSmallData
+        if showSmallData:
             self.smallDataWidget.show()
         else:
             self.smallDataWidget.hide()
@@ -395,67 +395,52 @@ class MainWindow(QMainWindow):
                     self.smallDataItem.setData(x=np.arange(self.smallData.size), y=self.smallData)
             
     def maybePlotProfile(self):
-        if self.showProfile:
-            print_with_timestamp("OK, I'll plot %s profile" %self.profileType)
-            if not self.profileWidget.isVisible():
-                self.profileWidget.show()
-            viewBox = self.profileWidget.getViewBox()
-            if self.profilePlotAutoRange:
-                viewBox.enableAutoRange()
-            else:
-                viewBox.disableAutoRange()
+        if self.showProfile and self.dispData is not None:
+            if self.mask is None:
+                self.mask = np.ones_like(self.dispData)
+            mask = self.mask.copy()
+            if self.maskFlag == True:
+                assert mask.shape == self.dispData.shape
+            if self.profileType == 'radial':
+                profile = calc_radial_profile(self.dispData, self.center, mask=mask, mode=self.profileMode)
+            elif self.profileType == 'angular':
+                annulus_mask = make_annulus(self.dispShape, self.angularRmin, self.angularRmax)
+                profile = calc_angular_profile(self.dispData, self.center, mask=mask*annulus_mask, mode=self.profileMode)
+            else:  # across center line
+                profile = calc_across_center_line_profile(self.dispData, self.center, angle=self.lineAngle, width=self.lineWidth, mask=self.mask, mode=self.profileMode)
             if self.profilePlotLog == True:
-                self.profileWidget.setLogMode(y=True)
+                profile[profile < 1.] = 1.
+            self.profileItem.setData(profile)
+            if self.profileType == 'radial':
+                self.profileWidget.setTitle('Radial Profile')
+                self.profileWidget.setLabels(bottom='r/pixel')
+            elif self.profileType == 'angular':
+                self.profileWidget.setTitle('Angular Profile')
+                self.profileWidget.setLabels(bottom='theta/deg')
             else:
-                self.profileWidget.setLogMode(y=False)
-            if self.dispData is not None:
-                if self.mask is None:
-                    self.mask = np.ones_like(self.dispData)
-                mask = self.mask.copy()
-                if self.maskFlag == True:
-                    assert mask.shape == self.dispData.shape
-                if self.profileType == 'radial':
-                    profile = calc_radial_profile(self.dispData, self.center, mask=mask, mode=self.profileMode)
-                elif self.profileType == 'angular':
-                    annulus_mask = make_annulus(self.dispShape, self.angularRmin, self.angularRmax)
-                    profile = calc_angular_profile(self.dispData, self.center, mask=mask*annulus_mask, mode=self.profileMode)
-                else:  # across center line
-                    profile = calc_across_center_line_profile(self.dispData, self.center, angle=self.lineAngle, width=self.lineWidth, mask=self.mask, mode=self.profileMode)
+              self.profileWidget.setTitle('Across Center Line Profile')
+              self.profileWidget.setLabels(bottom='index/pixel')
+            if self.smoothFlag == True:
+                smoothed_profile = savgol_filter(profile, self.smoothWinSize, self.polyOrder)
                 if self.profilePlotLog == True:
-                    profile[profile < 1.] = 1.
-                self.profileItem.setData(profile)
-                if self.profileType == 'radial':
-                    self.profileWidget.setTitle('Radial Profile')
-                    self.profileWidget.setLabels(bottom='r/pixel')
-                elif self.profileType == 'angular':
-                    self.profileWidget.setTitle('Angular Profile')
-                    self.profileWidget.setLabels(bottom='theta/deg')
+                    smoothed_profile[smoothed_profile < 1.] = 1.
+                self.smoothItem.setData(smoothed_profile)
+            else:
+                self.smoothItem.clear()
+            profile_with_noise = profile.astype(np.float) + np.random.rand(profile.size)*1E-5  # add some noise to avoid same integer value in profile
+            if self.extremaSearch == True:
+                if self.extremaType == 'max':
+                    extrema_indices = argrelmax(profile_with_noise, order=self.extremaWinSize)[0]
                 else:
-                  self.profileWidget.setTitle('Across Center Line Profile')
-                  self.profileWidget.setLabels(bottom='index/pixel')
-                if self.smoothFlag == True:
-                    smoothed_profile = savgol_filter(profile, self.smoothWinSize, self.polyOrder)
-                    if self.profilePlotLog == True:
-                        smoothed_profile[smoothed_profile < 1.] = 1.
-                    self.smoothItem.setData(smoothed_profile)
-                else:
-                    self.smoothItem.clear()
-                profile_with_noise = profile.astype(np.float) + np.random.rand(profile.size)*1E-5  # add some noise to avoid same integer value in profile
-                if self.extremaSearch == True:
-                    if self.extremaType == 'max':
-                        extrema_indices = argrelmax(profile_with_noise, order=self.extremaWinSize)[0]
-                    else:
-                        extrema_indices = argrelmin(profile_with_noise, order=self.extremaWinSize)[0]
-                    print_with_timestamp('before filtered by threshold: %s' %str(extrema_indices))
-                    extremas = profile[extrema_indices]
-                    filtered_extrema_indices = extrema_indices[extremas>self.extremaThreshold*profile.mean()]
-                    filtered_extremas = profile[filtered_extrema_indices]
-                    print_with_timestamp('after filtered by threshold: %s' %(filtered_extrema_indices))
-                    self.thresholdItem.setData(np.ones_like(profile)*profile.mean()*self.extremaThreshold)
-                else:
-                    self.thresholdItem.clear()
-        else:
-            self.profileWidget.hide()
+                    extrema_indices = argrelmin(profile_with_noise, order=self.extremaWinSize)[0]
+                print_with_timestamp('before filtered by threshold: %s' %str(extrema_indices))
+                extremas = profile[extrema_indices]
+                filtered_extrema_indices = extrema_indices[extremas>self.extremaThreshold*profile.mean()]
+                filtered_extremas = profile[filtered_extrema_indices]
+                print_with_timestamp('after filtered by threshold: %s' %(filtered_extrema_indices))
+                self.thresholdItem.setData(np.ones_like(profile)*profile.mean()*self.extremaThreshold)
+            else:
+                self.thresholdItem.clear()
 
     def calcDispData(self):
         if self.imageData is None:
@@ -610,8 +595,8 @@ class MainWindow(QMainWindow):
 
     def showProfileSlot(self, _, showProfile):
         print_with_timestamp('show or hide radial profile changed')
-        self.showProfile = showProfile
-        if self.showProfile:
+        if showProfile:
+            print_with_timestamp('show profile')
             self.profileWidget.show()
         else:
             self.profileWidget.hide()
@@ -677,25 +662,41 @@ class MainWindow(QMainWindow):
 
     def curvePlotLogModeSlot(self, _, log):
         print_with_timestamp('set curve plot log mode: %s' % str(log))
-        self.curvePlotLog = log
+        if log:
+            self.curveWidget.setLogMode(y=True)
+        else:
+            self.curveWidget.setLogMode(y=False)
 
     def profilePlotAutoRangeSlot(self, _, plotAutoRange):
         print_with_timestamp('set profile plot autorange: %s' % str(plotAutoRange))
-        self.profilePlotAutoRange = plotAutoRange
+        if plotAutoRange:
+            self.profileWidget.getViewBox().enableAutoRange()
+        else:
+            self.profileWidget.getViewBox().disableAutoRange()
         self.maybePlotProfile()
 
     def profilePlotLogModeSlot(self, _, log):
         print_with_timestamp('set profile plot log mode: %s' % str(log))
-        self.profilePlotLog = log
         self.maybePlotProfile()
+        if log:
+            self.profileWidget.setLogMode(y=True)
+        else:
+            self.profileWidget.setLogMode(y=False)
 
     def smallDataPlotAutoRangeSlot(self, _, plotAutoRange):
         print_with_timestamp('set small data plot autorange: %s' % str(plotAutoRange))
-        self.smallDataPlotAutoRange = plotAutoRange
+        if plotAutoRange:
+            self.smallDataWidget.getViewBox().enableAutoRange()
+        else:
+            self.smallDataWidget.getViewBox().disableAutoRange()
+        self.maybePlotProfile()
 
     def smallDataPlotLogModeSlot(self, _, log):
         print_with_timestamp('set small data log mode: %s' % str(log))
-        self.smallDataPlotLog = log
+        if log:
+            self.smallDataWidget.setLogMode(y=True)
+        else:
+            self.smallDataWidget.setLogMode(y=False)
 
     def showRingsSlot(self, _, showRings):
         print_with_timestamp('show rings: %s' %showRings)
