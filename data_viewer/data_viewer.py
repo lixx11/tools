@@ -703,8 +703,8 @@ class MainWindow(QMainWindow):
 
     def profilePlotLogModeSlot(self, _, log):
         print_with_timestamp('set profile plot log mode: %s' % str(log))
-        self.maybePlotProfile()
         self.profilePlotLog = log
+        self.maybePlotProfile()
 
     def smallDataPlotAutoRangeSlot(self, _, plotAutoRange):
         print_with_timestamp('set small data plot autorange: %s' % str(plotAutoRange))
