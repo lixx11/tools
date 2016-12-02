@@ -102,8 +102,12 @@ def calc_radial_profile(image, center, binsize=1., mask=None, mode='sum'):
     bin_r = np.round(bin_r).astype(int)
     radial_sum = np.bincount(bin_r.ravel(), image.ravel())  # summation of each ring
 
+    radial_std = np.zeros_like(radial_sum)
+    for x in xrange(bin_r.max()):
+        radial_std[x] = image[bin_r == x].std()
+
     if mode == 'sum':
-        return radial_sum
+        return radial_sum, radial_std
     elif mode == 'mean':
         if mask is None:
             mask = np.ones(image.shape)
@@ -111,7 +115,7 @@ def calc_radial_profile(image, center, binsize=1., mask=None, mode='sum'):
         radial_mean = radial_sum / nr
         radial_mean[np.isinf(radial_mean)] = 0.
         radial_mean[np.isnan(radial_mean)] = 0.
-        return radial_mean
+        return radial_mean, radial_std
     else:
         raise ValueError('Wrong mode: %s' %mode)
 
@@ -307,7 +311,7 @@ def load_data(filepath, dataset_name):
             data = f[dataset_name]
     elif ext == '.tif':
         assert dataset_name == 'default'
-        data = np.asarray(Image.open(filepath))
+        data = np.asarray(Image.open(filepath), dtype=np.float64)
     return data
 
 

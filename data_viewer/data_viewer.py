@@ -41,6 +41,7 @@ class MainWindow(QMainWindow):
         self.dispData = None  # 2d data for plot
         self.dispShape = None
         self.mask = None
+        self.weight = None
         self.curve = None
         self.acceptedFileTypes = [u'npy', u'npz', u'h5', u'mat', u'cxi', u'tif']
 
@@ -59,6 +60,7 @@ class MainWindow(QMainWindow):
         self.axis = 'x'
         self.frameIndex = 0
         self.maskFlag = False
+        self.weightFlag = False
         self.imageLog = False
         self.binaryFlag = False
         self.FFT = False
@@ -123,6 +125,7 @@ class MainWindow(QMainWindow):
                             {'name': 'File', 'type': 'str', 'value': 'not set', 'readonly': True},
                             {'name': 'Dataset', 'type': 'str', 'value': 'not set', 'readonly': True},
                             {'name': 'Mask', 'type': 'str', 'value': 'not set', 'readonly': True},
+                            {'name': 'Weight', 'type': 'str', 'value': 'not set', 'readonly': True},
                             {'name': 'Image Shape', 'type': 'str', 'value': 'unknown', 'readonly': True},
                             {'name': 'Image Friedel Score', 'type': 'float', 'readonly': True},
                             {'name': 'Curve Length', 'type': 'int', 'readonly': 'True'}
@@ -131,8 +134,9 @@ class MainWindow(QMainWindow):
                             {'name': 'Image', 'type': 'group', 'children': [
                                 {'name': 'Axis', 'type': 'list', 'values': ['x','y','z'], 'value': self.axis},
                                 {'name': 'Frame Index', 'type': 'int', 'value': self.frameIndex},
-                                {'name': 'Apply Mask', 'type': 'bool', 'value': self.imageLog},
-                                {'name': 'Apply Log', 'type': 'bool', 'value': self.maskFlag},
+                                {'name': 'Apply Mask', 'type': 'bool', 'value': self.maskFlag},
+                                {'name': 'Apply Weight', 'type': 'bool', 'value': self.weightFlag},
+                                {'name': 'Apply Log', 'type': 'bool', 'value': self.imageLog},
                                 {'name': 'Apply FFT', 'type': 'bool', 'value': self.FFT},
                                 {'name': 'Apply FFT-SHIFT', 'type': 'bool', 'value': self.FFTSHIFT},
                                 {'name': 'Binaryzation', 'type': 'bool', 'value': self.binaryFlag},
@@ -208,6 +212,7 @@ class MainWindow(QMainWindow):
         self.params.param('Basic Operation', 'Image', 'Axis').sigValueChanged.connect(self.axisChangedSlot)
         self.params.param('Basic Operation', 'Image', 'Frame Index').sigValueChanged.connect(self.frameIndexChangedSlot)
         self.params.param('Basic Operation', 'Image', 'Apply Mask').sigValueChanged.connect(self.applyMaskSlot)
+        self.params.param('Basic Operation', 'Image', 'Apply Weight').sigValueChanged.connect(self.applyWeightSlot)
         self.params.param('Basic Operation', 'Image', 'Apply Log').sigValueChanged.connect(self.applyImageLogSlot)
         self.params.param('Basic Operation', 'Image', 'Binaryzation').sigValueChanged.connect(self.binaryImageSlot)
         self.params.param('Basic Operation', 'Image', 'Apply FFT').sigValueChanged.connect(self.applyFFTSlot)
@@ -395,21 +400,24 @@ class MainWindow(QMainWindow):
                     self.smallDataItem.setData(x=np.arange(self.smallData.size), y=self.smallData)
             
     def maybePlotProfile(self):
-        if self.showProfile and self.dispData is not None:
+        if self.dispData is not None:
             if self.mask is None:
                 self.mask = np.ones_like(self.dispData)
             mask = self.mask.copy()
             if self.maskFlag == True:
                 assert mask.shape == self.dispData.shape
             if self.profileType == 'radial':
-                profile = calc_radial_profile(self.dispData, self.center, mask=mask, mode=self.profileMode)
+                profile, profile_std = calc_radial_profile(self.dispData, self.center, mask=mask, mode=self.profileMode)
             elif self.profileType == 'angular':
                 annulus_mask = make_annulus(self.dispShape, self.angularRmin, self.angularRmax)
                 profile = calc_angular_profile(self.dispData, self.center, mask=mask*annulus_mask, mode=self.profileMode)
             else:  # across center line
                 profile = calc_across_center_line_profile(self.dispData, self.center, angle=self.lineAngle, width=self.lineWidth, mask=self.mask, mode=self.profileMode)
-            if self.profilePlotLog == True:
-                profile[profile < 1.] = 1.
+            if self.profilePlotLog:
+                profile[profile <= 0.] = 1.
+                self.profileWidget.setLogMode(y=True)
+            else:
+                self.profileWidget.setLogMode(y=False)
             self.profileItem.setData(profile)
             if self.profileType == 'radial':
                 self.profileWidget.setTitle('Radial Profile')
@@ -468,8 +476,12 @@ class MainWindow(QMainWindow):
             dispData = dispData.copy()
         else:
             dispData = np.asarray(dispData).copy()
+        if self.weightFlag:
+            if self.weight is not None:
+                assert dispData.shape == self.weight.shape
+                dispData *= self.weight
         if self.imageLog:
-            dispData[dispData<1.] = 1.
+            dispData[dispData<=0.] = 1.
             dispData = np.log(dispData)
         if self.FFT:
             dispData = np.abs(np.fft.fft2(dispData))
@@ -619,6 +631,7 @@ class MainWindow(QMainWindow):
         item = self.fileList.currentItem()
         if isinstance(item, DatasetItem):
             setAsMask = fileMenu.addAction("Set As Mask")
+            setAsWeight = fileMenu.addAction('Set As Weight')
             action = fileMenu.exec_(self.fileList.mapToGlobal(position))
             if action == setAsMask:
                 filepath = item.parent().filepath
@@ -627,6 +640,13 @@ class MainWindow(QMainWindow):
                     raise ValueError('%s:%s can not be used as mask. Mask data must be 2d.' %(filepath, item.datasetName))
                 self.mask = np.asarray(mask)
                 self.params.param('Data Info', 'Mask').setValue("%s::%s" %(os.path.basename(filepath), item.datasetName))
+            elif action == setAsWeight:
+                filepath = item.parent().filepath
+                weight = load_data(filepath, item.datasetName)
+                if len(weight.shape) != 2:
+                    raise ValueError('%s:%s can not be used as weight. Weight data must be 2d.' %(filepath, item.datasetName))
+                self.weight = np.asarray(weight)
+                self.params.param('Data Info', 'Weight').setValue('%s::%s' % (os.path.basename(filepath), item.datasetName))
         elif isinstance(item, FileItem):
             deleteAction = fileMenu.addAction("Delete")
             action = fileMenu.exec_(self.fileList.mapToGlobal(position))
@@ -638,6 +658,12 @@ class MainWindow(QMainWindow):
     def applyMaskSlot(self, _, mask):
         print_with_timestamp('turn on mask: %s' % str(mask))
         self.maskFlag = mask
+        self.maybeChangeDisp()
+        self.maybePlotProfile()
+
+    def applyWeightSlot(self, _, weight):
+        print_with_timestamp('turn on weight: %s' % str(weight))
+        self.weightFlag = weight
         self.maybeChangeDisp()
         self.maybePlotProfile()
 
@@ -678,10 +704,7 @@ class MainWindow(QMainWindow):
     def profilePlotLogModeSlot(self, _, log):
         print_with_timestamp('set profile plot log mode: %s' % str(log))
         self.maybePlotProfile()
-        if log:
-            self.profileWidget.setLogMode(y=True)
-        else:
-            self.profileWidget.setLogMode(y=False)
+        self.profilePlotLog = log
 
     def smallDataPlotAutoRangeSlot(self, _, plotAutoRange):
         print_with_timestamp('set small data plot autorange: %s' % str(plotAutoRange))
