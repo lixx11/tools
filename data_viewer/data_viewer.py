@@ -351,7 +351,7 @@ class MainWindow(QMainWindow):
         self.imageShape = data.shape
         _shape_str = ''
         if len(self.imageShape) == 2:
-            _x, _y = self.imageShape
+            _y, _x = self.imageShape
             _shape_str = 'x: %d, y: %d' %(_x, _y)
         elif len(self.imageShape) == 3:
             _x, _y, _z = self.imageShape
@@ -402,8 +402,9 @@ class MainWindow(QMainWindow):
     def maybePlotProfile(self):
         if self.dispData is not None:
             if self.mask is None:
-                self.mask = np.ones_like(self.dispData)
-            mask = self.mask.copy()
+                mask = np.ones_like(self.dispData)
+            else:
+                mask = self.mask.copy()
             if self.maskFlag == True:
                 assert mask.shape == self.dispData.shape
             if self.profileType == 'radial':
@@ -525,9 +526,9 @@ class MainWindow(QMainWindow):
         self.dispShape = dispData.shape
         if self.maskFlag:
             if self.mask is None:
-                self.mask = np.ones(self.dispShape)
-            assert self.mask.shape == self.dispShape
-            dispData *= self.mask
+                mask = np.ones(self.dispShape)
+            assert mask.shape == self.dispShape
+            dispData *= mask
         if self.binaryFlag:
             dispData[dispData < self.dispThreshold] = 0.
             dispData[dispData >= self.dispThreshold] = 1.
@@ -541,6 +542,7 @@ class MainWindow(QMainWindow):
                 self.ringItem.setData(_cx, _cy, size=self.ringRadiis*2., symbol='o', brush=(255,255,255,0), pen='r', pxMode=False)
         self.centerMarkItem.setData([self.center[0]], [self.center[1]], size=10, symbol='+', brush=(255,255,255,0), pen='r', pxMode=False)
         Friedel_score = calc_Friedel_score(self.dispData, self.center, mask=self.mask, mode='relative')
+        print_with_timestamp('friedel score: %.3f' % Friedel_score)
         self.params.param('Data Info', 'Image Friedel Score').setValue(Friedel_score)
 
     def setLineAngleSlot(self, _, lineAngle):

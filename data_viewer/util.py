@@ -466,7 +466,7 @@ def calc_Friedel_score(image, center, mask=None, mode='mean', ignore_negative=Tr
         assert mask.min() >= 0. and mask.max() <= 1.
         mask = (mask > 0.5).astype(np.float64)
     else:
-        mask = np.ones(image.shape)
+        mask = np.ones_like(image)
     cy, cx = center[0], center[1]
     sy, sx = image.shape
     lx = min(cx, sx-cx-1)
@@ -476,13 +476,14 @@ def calc_Friedel_score(image, center, mask=None, mode='mean', ignore_negative=Tr
     if ignore_negative:
         mask *= (image > 0)
     mask = mask * np.rot90(np.rot90(mask))
-
+    if mask.sum() == 0:
+        return 0.  # no valid pixel
     if mode == 'sum':
         return (np.abs(image - np.rot90(np.rot90(image))) * mask).sum()
     elif mode == 'mean':
         return (np.abs(image - np.rot90(np.rot90(image))) * mask).sum() / mask.sum()
     elif mode == 'relative':
-        mean_image = 0.5 * (image + np.rot90(np.rot90(image))) + 1.E-10  # avoid divide 0 error
+        mean_image = np.abs(0.5 * (image + np.rot90(np.rot90(image)))) + 1.E-10  # avoid divide 0 error
         return (np.abs((image - np.rot90(np.rot90(image))) / mean_image) * mask).sum() / mask.sum()
     else:
         raise Error('Unrecoganized mode: %s' %mode)
