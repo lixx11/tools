@@ -43,7 +43,7 @@ class MainWindow(QMainWindow):
         self.mask = None
         self.weight = None
         self.curve = None
-        self.acceptedFileTypes = [u'npy', u'npz', u'h5', u'mat', u'cxi', u'tif']
+        self.acceptedFileTypes = [u'npy', u'npz', u'h5', u'mat', u'cxi', u'tif', u'Iochamber', u'Intensity']
 
         self.dispItem = self.imageView.getImageItem()
         self.ringItem = pg.ScatterPlotItem()
@@ -67,9 +67,10 @@ class MainWindow(QMainWindow):
         self.FFTSHIFT = False
         self.dispThreshold = 0
         self.center = [0, 0]
+        self.centerFixed = False
         self.showRings = False
         self.ringRadiis = []
-        self.showCurvePlot = True
+        self.curvePlotHoldOn = False
 
         self.profileItem = PlotDataItem(pen=pg.mkPen('y', width=1, style=QtCore.Qt.SolidLine), name='profile')
         self.smoothItem = PlotDataItem(pen=pg.mkPen('g', width=2, style=QtCore.Qt.DotLine), name='smoothed profile')
@@ -81,7 +82,7 @@ class MainWindow(QMainWindow):
         self.profileWidget.getPlotItem().setTitle(title='Profile Plot')
         # profile option
         self.showProfile = False
-        self.profileType = 'radial'
+        self.feature = 'radial'
         self.profileMode = 'sum'
         # extrema search
         self.extremaSearch = False
@@ -143,17 +144,18 @@ class MainWindow(QMainWindow):
                                 {'name': 'Threshold', 'type': 'float', 'value': self.dispThreshold},
                                 {'name': 'Center x', 'type': 'int', 'value': self.center[1]},
                                 {'name': 'Center y', 'type': 'int', 'value': self.center[0]},
+                                {'name': 'Fix Center', 'type': 'bool', 'value': self.centerFixed},
                                 {'name': 'Show Rings', 'type': 'bool'},
                                 {'name': 'Ring Radiis', 'type': 'str', 'value': ''},
                             ]},
                             {'name': 'Curve Plot', 'type': 'group', 'children': [
-                                {'name': 'TODO', 'type': 'str'},
+                                {'name': 'Hold On', 'type': 'bool', 'value': self.curvePlotHoldOn},
                             ]}
                         ]},
                         {'name': 'Image to Feature Profile', 'type': 'group', 'children': [
                             {'name': 'Show Profile', 'type': 'bool', 'value': self.showProfile},
-                            {'name': 'Feature', 'type': 'list', 'values': ['radial','angular', 'across center line'], 'value': self.profileType},
-                            {'name': 'Profile Mode', 'type': 'list', 'values': ['sum','mean'], 'value': self.profileMode},
+                            {'name': 'Feature', 'type': 'list', 'values': ['radial','angular', 'across center line'], 'value': self.feature},
+                            {'name': 'Profile Mode', 'type': 'list', 'values': ['sum','mean', 'std', 'rstd'], 'value': self.profileMode},
                             {'name': 'Angular Option', 'type': 'group', 'children': [
                                 {'name': 'R min', 'type': 'float', 'value': self.angularRmin},
                                 {'name': 'R max', 'type': 'float', 'value': self.angularRmax},
@@ -221,11 +223,14 @@ class MainWindow(QMainWindow):
         self.params.param('Basic Operation', 'Image', 'Threshold').sigValueChanged.connect(self.setDispThresholdSlot)
         self.params.param('Basic Operation', 'Image', 'Center x').sigValueChanged.connect(self.centerXChangedSlot)
         self.params.param('Basic Operation', 'Image', 'Center y').sigValueChanged.connect(self.centerYChangedSlot)
+        self.params.param('Basic Operation', 'Image', 'Fix Center').sigValueChanged.connect(self.centerFixedSlot)
         self.params.param('Basic Operation', 'Image', 'Show Rings').sigValueChanged.connect(self.showRingsSlot)
         self.params.param('Basic Operation', 'Image', 'Ring Radiis').sigValueChanged.connect(self.ringRadiiSlot)
 
+        self.params.param('Basic Operation', 'Curve Plot', 'Hold On').sigValueChanged.connect(self.curvePlotHoldOnSlot)
+
         self.params.param('Image to Feature Profile', 'Show Profile').sigValueChanged.connect(self.showProfileSlot)
-        self.params.param('Image to Feature Profile', 'Feature').sigValueChanged.connect(self.setProfileTypeSlot)
+        self.params.param('Image to Feature Profile', 'Feature').sigValueChanged.connect(self.setfeatureSlot)
         self.params.param('Image to Feature Profile', 'Profile Mode').sigValueChanged.connect(self.setProfileModeSlot)
         self.params.param('Image to Feature Profile', 'Angular Option', 'R min').sigValueChanged.connect(self.setAngularRminSlot)
         self.params.param('Image to Feature Profile', 'Angular Option', 'R max').sigValueChanged.connect(self.setAngularRmaxSlot)
@@ -253,6 +258,10 @@ class MainWindow(QMainWindow):
         self.params.param('Display Option', 'Profile Plot', 'Log').sigValueChanged.connect(self.profilePlotLogModeSlot)
         self.params.param('Display Option', 'Small Data Plot', 'autoRange').sigValueChanged.connect(self.smallDataPlotAutoRangeSlot)
         self.params.param('Display Option', 'Small Data Plot', 'Log').sigValueChanged.connect(self.smallDataPlotLogModeSlot)
+
+    def curvePlotHoldOnSlot(self, _, curvePlotHoldOn):
+        self.curvePlotHoldOn = curvePlotHoldOn
+        print_with_timestamp('curvePlotHoldOn set to %s' % self.curvePlotHoldOn)
 
     def addFilesSlot(self):
         filePattern = str(self.lineEdit.text())
@@ -407,9 +416,9 @@ class MainWindow(QMainWindow):
                 mask = self.mask.copy()
             if self.maskFlag == True:
                 assert mask.shape == self.dispData.shape
-            if self.profileType == 'radial':
-                profile, profile_std = calc_radial_profile(self.dispData, self.center, mask=mask, mode=self.profileMode)
-            elif self.profileType == 'angular':
+            if self.feature == 'radial':
+                profile = calc_radial_profile(self.dispData, self.center, mask=mask, mode=self.profileMode)
+            elif self.feature == 'angular':
                 annulus_mask = make_annulus(self.dispShape, self.angularRmin, self.angularRmax)
                 profile = calc_angular_profile(self.dispData, self.center, mask=mask*annulus_mask, mode=self.profileMode)
             else:  # across center line
@@ -420,10 +429,10 @@ class MainWindow(QMainWindow):
             else:
                 self.profileWidget.setLogMode(y=False)
             self.profileItem.setData(profile)
-            if self.profileType == 'radial':
+            if self.feature == 'radial':
                 self.profileWidget.setTitle('Radial Profile')
                 self.profileWidget.setLabels(bottom='r/pixel')
-            elif self.profileType == 'angular':
+            elif self.feature == 'angular':
                 self.profileWidget.setTitle('Angular Profile')
                 self.profileWidget.setLabels(bottom='theta/deg')
             else:
@@ -513,11 +522,19 @@ class MainWindow(QMainWindow):
         self.maybePlotProfile()
 
     def maybeChangeCurve(self, name=None):
-        if not self.showCurvePlot or self.curve is None:
+        if self.curve is None:
             return None
-        self.curveItem.setData(self.curve)
-        if name is not None:
-            self.curveWidget.getPlotItem().setTitle('Curve Plot -- %s' %name)
+        if self.curvePlotHoldOn:
+            self.curveWidget.getPlotItem().plot(self.curve)
+            self.params.param('Data Info', 'Curve Length').setValue(self.curve.size)
+            self.curveWidget.getPlotItem().setTitle('MultiPlot')
+        else:
+            self.curveWidget.getPlotItem().clear()
+            self.curveWidget.addItem(self.curveItem)
+            self.curveItem.setData(self.curve)
+            self.params.param('Data Info', 'Curve Length').setValue(self.curve.size)
+            if name is not None:
+                self.curveWidget.getPlotItem().setTitle('Curve Plot -- %s' %name)
 
     def maybeChangeDisp(self):
         if not self.showImage or self.imageData is None:
@@ -527,6 +544,8 @@ class MainWindow(QMainWindow):
         if self.maskFlag:
             if self.mask is None:
                 mask = np.ones(self.dispShape)
+            else:
+                mask = self.mask.copy()
             assert mask.shape == self.dispShape
             dispData *= mask
         if self.binaryFlag:
@@ -617,16 +636,28 @@ class MainWindow(QMainWindow):
         self.maybePlotProfile()
 
     def centerXChangedSlot(self, _, centerX):
-        print_with_timestamp('center X changed')
-        self.center[0] = centerX
-        self.maybeChangeDisp()
-        self.maybePlotProfile()
+        if self.centerFixed:
+            print_with_timestamp('center is fixed now')
+            self.params.param('Basic Operation', 'Image', 'Center x').setValue(self.center[0])
+        else:
+            print_with_timestamp('center X changed')
+            self.center[0] = centerX
+            self.maybeChangeDisp()
+            self.maybePlotProfile()
 
     def centerYChangedSlot(self, _, centerY):
-        print_with_timestamp('center Y changed')
-        self.center[1] = centerY
-        self.maybeChangeDisp()
-        self.maybePlotProfile()
+        if self.centerFixed:
+            print_with_timestamp('center is fixed now')
+            self.params.param('Basic Operation', 'Image', 'Center y').setValue(self.center[1])
+        else:
+            print_with_timestamp('center Y changed')
+            self.center[1] = centerY
+            self.maybeChangeDisp()
+            self.maybePlotProfile()
+
+    def centerFixedSlot(self, _, centerFixed):
+        print_with_timestamp('center fixed: %s' % centerFixed)
+        self.centerFixed = centerFixed
 
     def showFileMenuSlot(self, position):
         fileMenu = QtGui.QMenu()
@@ -739,9 +770,9 @@ class MainWindow(QMainWindow):
         self.ringRadiis = np.asarray(ringRadiis)
         self.maybeChangeDisp()
 
-    def setProfileTypeSlot(self, _, profileType):
-        print_with_timestamp('set profile type: %s' %str(profileType))
-        self.profileType = profileType
+    def setfeatureSlot(self, _, feature):
+        print_with_timestamp('set profile type: %s' %str(feature))
+        self.feature = feature
         self.maybePlotProfile()
 
     def setProfileModeSlot(self, _, profileMode):

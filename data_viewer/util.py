@@ -105,17 +105,22 @@ def calc_radial_profile(image, center, binsize=1., mask=None, mode='sum'):
     radial_std = np.zeros_like(radial_sum)
     for x in xrange(bin_r.max()):
         radial_std[x] = image[bin_r == x].std()
+    nr = np.bincount(bin_r.ravel(), mask.ravel())
+    radial_mean = radial_sum / nr
+    radial_mean[np.isinf(radial_mean)] = 0.
+    radial_mean[np.isnan(radial_mean)] = 0.
+    radial_rstd = radial_std / radial_mean
+    radial_rstd[np.isinf(radial_rstd)] = 0.
+    radial_rstd[np.isnan(radial_rstd)] = 0.
 
     if mode == 'sum':
-        return radial_sum, radial_std
+        return radial_sum
     elif mode == 'mean':
-        if mask is None:
-            mask = np.ones(image.shape)
-        nr = np.bincount(bin_r.ravel(), mask.ravel())
-        radial_mean = radial_sum / nr
-        radial_mean[np.isinf(radial_mean)] = 0.
-        radial_mean[np.isnan(radial_mean)] = 0.
-        return radial_mean, radial_std
+        return radial_mean
+    elif mode == 'std':
+        return radial_std
+    elif mode == 'rstd':
+        return radial_rstd
     else:
         raise ValueError('Wrong mode: %s' %mode)
 
@@ -312,6 +317,12 @@ def load_data(filepath, dataset_name):
     elif ext == '.tif':
         assert dataset_name == 'default'
         data = np.asarray(Image.open(filepath), dtype=np.float64)
+    elif ext == '.Iochamber':
+        assert dataset_name == 'default'
+        data = load_Iochamber(filepath)
+    elif ext == '.Intensity':
+        assert dataset_name == 'default'
+        data = load_Intensity(filepath)
     return data
 
 
@@ -369,7 +380,6 @@ def get_data_info(filepath):
                             data_info[key]['value'] = float(f[key].value)
                         else:
                             data_info[key]['value'] = None
-
         except NotImplementedError:  # v7.3 mat use h5py 
             f = h5py.File(filepath, 'r')
             for key in f.keys():
@@ -386,7 +396,48 @@ def get_data_info(filepath):
         data_info['default'] = {}
         data_info['default']['shape'] = data.shape
         data_info['default']['value'] = None
+    elif ext == '.Iochamber':
+        data = load_Iochamber(filepath)
+        data_info['default'] = {}
+        data_info['default']['shape'] = data.shape 
+        data_info['default']['value'] = None
+    elif ext == '.Intensity':
+        data = load_Intensity(filepath)
+        data_info['default'] = {}
+        data_info['default']['shape'] = data.shape 
+        data_info['default']['value'] = None
     return data_info
+
+
+def load_Iochamber(filepath):
+    f = open(filepath, 'r')
+    intensity = []
+    for i in range(3):  # skip first 3 lines
+        f.readline()
+    while True:
+        line = f.readline()
+        if line:
+            intensity.append(float(line.split()[1]))
+        else:
+            break
+    return np.asarray(intensity, dtype=np.float64)
+
+
+def load_Intensity(filepath):
+    f = open(filepath, 'r')
+    intensity = []
+    while True:
+        line = f.readline()
+        if line:
+            try:
+                I = float(line.split()[2])
+                intensity.append(I)
+                continue
+            except:
+                pass          
+        else:
+            break
+    return np.asarray(intensity, dtype=np.float64)
 
 
 def make_annulus(shape, inner_radii, outer_radii, fill_value=1., center=None):
