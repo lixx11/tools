@@ -380,17 +380,20 @@ class MainWindow(QMainWindow):
         self.params.param('Basic Operation', 'Image', 'Center y').setValue(self.center[1])
 
     def calcCenter(self):
-        if len(self.imageShape) == 2:
-            center = [self.imageShape[1]//2, self.imageShape[0]//2]
-            return center
-        assert len(self.imageShape) == 3
-        if self.axis == 'x':
-            center = [self.imageShape[2]//2, self.imageShape[1]//2]
-        elif self.axis == 'y':
-            center = [self.imageShape[2]//2, self.imageShape[0]//2]
+        if self.centerFixed:
+            return self.center
         else:
-            center = [self.imageShape[1]//2, self.imageShape[0]//2]
-        return center
+            if len(self.imageShape) == 2:
+                center = [self.imageShape[1]//2, self.imageShape[0]//2]
+                return center
+            assert len(self.imageShape) == 3
+            if self.axis == 'x':
+                center = [self.imageShape[2]//2, self.imageShape[1]//2]
+            elif self.axis == 'y':
+                center = [self.imageShape[2]//2, self.imageShape[0]//2]
+            else:
+                center = [self.imageShape[1]//2, self.imageShape[0]//2]
+            return center
 
     def maybeShowSmallData(self):
         if self.showSmallData:
