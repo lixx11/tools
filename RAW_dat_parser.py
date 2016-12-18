@@ -7,7 +7,7 @@ Options:
     --ref=<ref_dat>     Reference RAW dat file.
     --qmin=<qmin>       qmin to calculate scaling ratio [default: 0].
     --qmax=<qmax>       qmax to calculate scaling ratio [default: 1E10].
-    --diff-mode=<diff_mode>     Plot difference in absolute scale or relative scale [default: rel].
+    --diff-mode=<diff_mode>     Plot difference in absolute scale or relative scale [default: relative].
 """
 
 import numpy as np 
@@ -93,17 +93,17 @@ if __name__ == '__main__':
     plt.title('SAXS profiles after scaling')
     plt.subplot(223)
     for data in data_list:
-        if diff_mode == 'abs':
+        if diff_mode == 'absolute':
             plt.plot(data['qs'], data['abs_diff'], label=data['filename'])
-        elif diff_mode == 'rel':
+        elif diff_mode == 'relative':
             plt.plot(data['qs'], data['rel_diff'], label=data['filename'])
     plt.legend()
     plt.title('%s difference before scaling' % diff_mode)
     plt.subplot(224)
     for data in data_list:
-        if diff_mode == 'abs':
+        if diff_mode == 'absolute':
             plt.plot(data['qs'], data['abs_scaling_diff'], label=data['filename'])
-        elif diff_mode == 'rel':
+        elif diff_mode == 'relative':
             plt.plot(data['qs'], data['rel_scaling_diff'], label=data['filename'])
     plt.legend()
     plt.title('%s difference after scaling' % diff_mode)
