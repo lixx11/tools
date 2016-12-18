@@ -63,8 +63,7 @@ if __name__ == '__main__':
     qmax_id = np.argmin(np.abs(ref_qs - qmax))
     data_list = []
     for raw_dat in raw_dats:
-        # filename = raw_dat.split('/')[-1]
-        filename = raw_dat
+        filename = raw_dat.split('/')[-1]
         qs, Is, Es = load_RAW_dat(raw_dat)
         data_dict = {}
         data_dict['filename'] = filename
