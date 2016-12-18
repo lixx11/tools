@@ -668,6 +668,8 @@ class MainWindow(QMainWindow):
         if isinstance(item, DatasetItem):
             setAsMask = fileMenu.addAction("Set As Mask")
             setAsWeight = fileMenu.addAction('Set As Weight')
+            setAsBackground = fileMenu.addAction('Set As Background')
+            calcAverage = fileMenu.addAction('Calculate Average Image')
             action = fileMenu.exec_(self.fileList.mapToGlobal(position))
             if action == setAsMask:
                 filepath = item.parent().filepath
@@ -683,11 +685,40 @@ class MainWindow(QMainWindow):
                     raise ValueError('%s:%s can not be used as weight. Weight data must be 2d.' %(filepath, item.datasetName))
                 self.weight = np.asarray(weight)
                 self.params.param('Data Info', 'Weight').setValue('%s::%s' % (os.path.basename(filepath), item.datasetName))
+            elif action == setAsBackground:
+                pass
+            elif action == calcAverage:
+                datasetShape = None
+                datasetCount = 0
+                datasetList = []
+                for item in self.fileList.selectedItems():
+                    if isinstance(item, DatasetItem):
+                        filepath = item.parent().filepath
+                        datasetName = item.datasetName
+                        if datasetCount == 0:
+                            datasetShape = item.datasetShape
+                            datasetList.append(load_data(filepath, datasetName))
+                            datasetCount += 1
+                        else:
+                            if item.datasetShape == datasetShape:
+                                datasetList.append(load_data(filepath, datasetName))
+                                datasetCount += 1
+                            else:
+                                print_with_timestamp('WARNING! Inconsistent data shape %s of %s. Skip this dataset.' % (str(item.datasetShape), str(filepath) + str(datasetName)))
+                totalData = np.asarray(datasetList)
+                assert len(totalData.shape) == 3
+                avgImg = totalData.mean(axis=0)
+                stdImg = totalData.std(axis=0)
+                maxImg = totalData.max(axis=0)
+                timestamp = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+                avgFilepath = 'avg-%s.npz' % timestamp
+                np.savez(avgFilepath, avg=avgImg, std=stdImg, max=maxImg)
+                print_with_timestamp('Saving average, std, max images from selected %d datasets to %s' % (datasetCount, avgFilepath))
+
         elif isinstance(item, FileItem):
             deleteAction = fileMenu.addAction("Delete")
             action = fileMenu.exec_(self.fileList.mapToGlobal(position))
             if action == deleteAction:
-                print('deleting selected file')
                 for item in self.fileList.selectedItems():
                     self.fileList.takeTopLevelItem(self.fileList.indexOfTopLevelItem(item))
 
