@@ -77,6 +77,7 @@ if __name__ == '__main__':
         data_dict['abs_scaling_diff'] = scaling_factor * Is - ref_Is
         data_dict['rel_scaling_diff'] = (scaling_factor * Is - ref_Is) / ref_Is
         data_list.append(data_dict)
+        print('scaling factor for %s: %.3f' % (raw_dat, scaling_factor))
 
     # making plots
     fig1 = plt.figure()
