@@ -178,7 +178,7 @@ class MainWindow(QMainWindow):
                         ]},
                         {'name': 'Small Data', 'type': 'group', 'children': [
                             {'name': 'Filepath', 'type': 'str'},
-                            {'name': 'Dataset', 'type': 'str'},
+                            {'name': 'Dataset', 'type': 'list', 'values': ['none'], 'value': 'none'},
                             {'name': 'Show data', 'type': 'bool', 'value': self.showSmallData},
                             {'name': 'Sort', 'type': 'bool', 'value': self.smallDataSorted},
                         ]},
@@ -291,6 +291,8 @@ class MainWindow(QMainWindow):
     def setSmallDataFilepathSlot(self, _, filepath):
         print_with_timestamp('set filepath for small data: %s' % str(filepath))
         self.smallDataFile = filepath
+        smallDatasets = get_small_dataset(filepath)
+        self.params.param('Small Data', 'Dataset').setLimits(smallDatasets)
         self.maybeShowSmallData()
 
     def setSmallDatasetSlot(self, _, dataset):

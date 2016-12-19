@@ -55,6 +55,15 @@ def pol2cart(rho, theta):
     return x, y
 
 
+def get_small_dataset(filepath):
+    f = h5py.File(filepath, 'r')
+    datasets = []
+    for key in f.keys():
+        if key != 'frames' and key != 'paths':
+            datasets.append(key)
+    return datasets
+
+
 def calc_radial_profile(image, center, binsize=1., mask=None, mode='sum'):
     """Summary
     
