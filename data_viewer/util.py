@@ -296,7 +296,6 @@ def make_temp_file(filepath, frame, output):
 
 def load_data(filepath, dataset_name):
     filepath = str(filepath)
-    # dataset_name = str(dataset_name)
     if not os.path.isfile(filepath):
         raise os.error('File not exist: %s' %filepath)
     _, ext = os.path.splitext(filepath)
@@ -323,6 +322,8 @@ def load_data(filepath, dataset_name):
     elif ext == '.Intensity':
         assert dataset_name == 'default'
         data = load_Intensity(filepath)
+    data[np.isnan(data)] = 0.
+    data[np.isinf(data)] = 0.
     return data
 
 

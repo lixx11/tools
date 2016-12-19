@@ -300,7 +300,7 @@ class MainWindow(QMainWindow):
 
     def showSmallDataSlot(self, _, showSmallData):
         print_with_timestamp('set show small data: %s' % str(showSmallData))
-        # self.showSmallData = showSmallData
+        self.showSmallData = showSmallData
         if showSmallData:
             self.smallDataWidget.show()
         else:
