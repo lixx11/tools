@@ -63,14 +63,14 @@ class SmallData(object):
             Exception: Keys in kwargs must match the small data. Error raised if not.
         """
         keys = kwargs.keys()
-        plural_keys = []
-        for key in keys:
-            plural_keys.append(key+'s')
-        if not set(plural_keys) == set(self.smallDataNames):
+        # plural_keys = []
+        # for key in keys:
+        #     plural_keys.append(key+'s')
+        if not set(keys) == set(self.smallDataNames):
             raise Exception('Record(%s) not match small data names: %s' %(plural_keys, self.smallDataNames))
         for key, item in kwargs.iteritems():
-            plural_key = key + 's'
-            self.smallDataDict[plural_key].append(item)
+            # plural_key = key + 's'
+            self.smallDataDict[key].append(item)
         self.paths.append(str(path))
         self.frames.append(int(frame))
 
@@ -108,7 +108,7 @@ class SmallData(object):
 
 
 if __name__ == '__main__':
-    smallData = SmallData(output='test.h5', smallDataNames=['scores', 'aas', 'bbs'])   # init smalldata with 3 customized fields: scores, aas, bbs
+    smallData = SmallData(output='test.h5', smallDataNames=['score', 'aa', 'bb'])   # init smalldata with 3 customized fields: scores, aas, bbs
     smallData.addRecord('path1', 1, score=1, aa=12, bb=1)  # add one record using singular form keyword
-    smallData.addRecords(['path1', 'path2'], [1, 2], scores=[3,4], aas=[1,2], bbs=[3,4])  # add multiple records using plural form keyword
+    smallData.addRecords(['path1', 'path2'], [1, 2], score=[3,4], aa=[1,2], bb=[3,4])  # add multiple records using plural form keyword
     smallData.close()  # write to h5 file and close
