@@ -672,6 +672,7 @@ class MainWindow(QMainWindow):
             setAsWeight = fileMenu.addAction('Set As Weight')
             setAsBackground = fileMenu.addAction('Set As Background')
             calcAverage = fileMenu.addAction('Calculate Average Image')
+            saveToHawkInputFile = fileMenu.addAction('Save to Hawk Input File')
             action = fileMenu.exec_(self.fileList.mapToGlobal(position))
             if action == setAsMask:
                 filepath = item.parent().filepath
@@ -716,6 +717,10 @@ class MainWindow(QMainWindow):
                 avgFilepath = 'avg-%s.npz' % timestamp
                 np.savez(avgFilepath, avg=avgImg, std=stdImg, max=maxImg)
                 print_with_timestamp('Saving average, std, max images from selected %d datasets to %s' % (datasetCount, avgFilepath))
+            elif action == saveToHawkInputFile:
+                filepath = item.parent().filepath
+                data = load_data(filepath, item.datasetName)
+                save_as_Hawk_input_file(data)
 
         elif isinstance(item, FileItem):
             deleteAction = fileMenu.addAction("Delete")

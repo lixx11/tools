@@ -55,6 +55,29 @@ def pol2cart(rho, theta):
     return x, y
 
 
+def save_as_Hawk_input_file(data, filename='hawk_input.h5'):
+    if len(data.shape) == 2:
+        data = data.reshape((data.shape[0], data.shape[1], 1))
+    elif len(data.shape) == 3:
+        assert data.shape[2] == 1
+    else:
+        print('data must be 2d!!')
+        return None
+    f = h5py.File(filename, 'w')
+    f.create_dataset('/detector_distance', data=1., shape=(1,), dtype='f4')
+    f.create_dataset('/image_center', shape=(3,), dtype='f4')
+    f.create_dataset('/lambda', data=1., shape=(1,), dtype='f4')
+    f.create_dataset('/mask', data=np.ones_like(data), dtype='i4')
+    f.create_dataset('/num_dimensions', data=2., shape=(1,), dtype='f4')
+    f.create_dataset('/phased', data=0., shape=(1,), dtype='f4')
+    f.create_dataset('/real', data=data, dtype='f4')
+    f.create_dataset('/scaled', data=0., shape=(1,), dtype='f4')
+    f.create_dataset('/pixel_size', data=0., shape=(1,), dtype='f4')
+    f.create_dataset('/shifted', data=0., shape=(1,), dtype='f4')
+    f.create_dataset('/version', data=2, shape=(1,), dtype='i4')
+    f.close()
+
+
 def get_small_dataset(filepath):
     f = h5py.File(filepath, 'r')
     datasets = []
