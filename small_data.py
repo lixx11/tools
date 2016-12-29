@@ -67,7 +67,7 @@ class SmallData(object):
         # for key in keys:
         #     plural_keys.append(key+'s')
         if not set(keys) == set(self.smallDataNames):
-            raise Exception('Record(%s) not match small data names: %s' %(plural_keys, self.smallDataNames))
+            raise Exception('Record(%s) not match small data names: %s' %(keys, self.smallDataNames))
         for key, item in kwargs.iteritems():
             # plural_key = key + 's'
             self.smallDataDict[key].append(item)
