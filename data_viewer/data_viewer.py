@@ -182,6 +182,16 @@ class MainWindow(QMainWindow):
                             {'name': 'Show data', 'type': 'bool', 'value': self.showSmallData},
                             {'name': 'Sort', 'type': 'bool', 'value': self.smallDataSorted},
                         ]},
+                        {'name': 'Output', 'type': 'group', 'children': [
+                            {'name': 'Format', 'type': 'list', 'values': ['none', 'Hawk h5'], 'value': 'none'},
+                            {'name': 'Write to File', 'type': 'action'},
+                            {'name': 'Hawk h5 option', 'type': 'group', 'children': [
+                                {'name': 'Phased', 'type': 'bool'},
+                                {'name': 'Scaled', 'type': 'bool'},
+                                {'name': 'Shifted', 'type': 'bool'},
+                                {'name': 'Filename', 'type': 'str', 'value': 'hawk_input.h5'},
+                            ]},
+                        ]},
                         {'name': 'Display Option', 'type': 'group', 'children': [
                             {'name': 'Image', 'type': 'group', 'children': [
                                 {'name': 'autoRange', 'type': 'bool', 'value': self.imageAutoRange},
@@ -249,6 +259,8 @@ class MainWindow(QMainWindow):
         self.params.param('Small Data', 'Show data').sigValueChanged.connect(self.showSmallDataSlot)
         self.params.param('Small Data', 'Sort').sigValueChanged.connect(self.sortSmallDataSlot)
 
+        self.params.param('Output', 'Write to File').sigActivated.connect(self.writeToFileSlot)
+
         self.params.param('Display Option', 'Image', 'autoRange').sigValueChanged.connect(self.imageAutoRangeSlot)
         self.params.param('Display Option', 'Image', 'autoLevels').sigValueChanged.connect(self.imageAutoLevelsSlot)
         self.params.param('Display Option', 'Image', 'autoHistogramRange').sigValueChanged.connect(self.imageAutoHistogramRangeSlot)
@@ -258,6 +270,17 @@ class MainWindow(QMainWindow):
         self.params.param('Display Option', 'Profile Plot', 'Log').sigValueChanged.connect(self.profilePlotLogModeSlot)
         self.params.param('Display Option', 'Small Data Plot', 'autoRange').sigValueChanged.connect(self.smallDataPlotAutoRangeSlot)
         self.params.param('Display Option', 'Small Data Plot', 'Log').sigValueChanged.connect(self.smallDataPlotLogModeSlot)
+
+    def writeToFileSlot(self):
+        format_ = self.params.param('Output', 'Format').value()
+        if format_ == 'Hawk h5':
+            phased = self.params.param('Output', 'Hawk h5 option', 'Phased').value()
+            scaled = self.params.param('Output', 'Hawk h5 option', 'Scaled').value()
+            shifted = self.params.param('Output', 'Hawk h5 option', 'Shifted').value()
+            filename = self.params.param('Output', 'Hawk h5 option', 'Filename').value()
+            print_with_timestamp('Write current plot to Hawk input h5 file: %s.' % filename)
+            save_as_Hawk_input_file(self.dispData, filename=filename, phased=phased, scaled=scaled, shifted=shifted)
+
 
     def curvePlotHoldOnSlot(self, _, curvePlotHoldOn):
         self.curvePlotHoldOn = curvePlotHoldOn
@@ -672,7 +695,6 @@ class MainWindow(QMainWindow):
             setAsWeight = fileMenu.addAction('Set As Weight')
             setAsBackground = fileMenu.addAction('Set As Background')
             calcAverage = fileMenu.addAction('Calculate Average Image')
-            saveToHawkInputFile = fileMenu.addAction('Save to Hawk Input File')
             action = fileMenu.exec_(self.fileList.mapToGlobal(position))
             if action == setAsMask:
                 filepath = item.parent().filepath
@@ -717,10 +739,6 @@ class MainWindow(QMainWindow):
                 avgFilepath = 'avg-%s.npz' % timestamp
                 np.savez(avgFilepath, avg=avgImg, std=stdImg, max=maxImg)
                 print_with_timestamp('Saving average, std, max images from selected %d datasets to %s' % (datasetCount, avgFilepath))
-            elif action == saveToHawkInputFile:
-                filepath = item.parent().filepath
-                data = load_data(filepath, item.datasetName)
-                save_as_Hawk_input_file(data)
 
         elif isinstance(item, FileItem):
             deleteAction = fileMenu.addAction("Delete")

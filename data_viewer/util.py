@@ -55,25 +55,48 @@ def pol2cart(rho, theta):
     return x, y
 
 
-def save_as_Hawk_input_file(data, filename='hawk_input.h5'):
-    if len(data.shape) == 2:
-        data = data.reshape((data.shape[0], data.shape[1], 1))
-    elif len(data.shape) == 3:
-        assert data.shape[2] == 1
-    else:
-        print('data must be 2d!!')
-        return None
+def save_as_Hawk_input_file(data, filename='hawk_input.h5', phased=False, scaled=False, shifted=False):
+    """Summary
+    
+    Parameters
+    ----------
+    data : ndarray
+        2D image.
+    filename : str, optional
+        Output filename.
+    phased : bool, optional
+        Phase information included. Not very sure.
+    scaled : bool, optional
+        True for amplitude, False for intensity.
+    shifted : bool, optional
+        True for 0-freq in the center, False for 0-freq at corners.
+    
+    Returns
+    -------
+    TYPE
+        None
+    """
     f = h5py.File(filename, 'w')
+    data = data.reshape((data.shape[0], data.shape[1], 1))
+    if phased:
+        f.create_dataset('/phased', data=1., shape=(1,), dtype='f4')
+    else:
+        f.create_dataset('/phased', data=0., shape=(1,), dtype='f4')
+    if scaled:
+        f.create_dataset('/scaled', data=1., shape=(1,), dtype='f4')
+    else:
+        f.create_dataset('/scaled', data=0., shape=(1,), dtype='f4')
+    if shifted:
+        f.create_dataset('/shifted', data=1., shape=(1,), dtype='f4')
+    else:
+        f.create_dataset('/shifted', data=0., shape=(1,), dtype='f4')
     f.create_dataset('/detector_distance', data=1., shape=(1,), dtype='f4')
     f.create_dataset('/image_center', shape=(3,), dtype='f4')
     f.create_dataset('/lambda', data=1., shape=(1,), dtype='f4')
     f.create_dataset('/mask', data=np.ones_like(data), dtype='i4')
     f.create_dataset('/num_dimensions', data=2., shape=(1,), dtype='f4')
-    f.create_dataset('/phased', data=0., shape=(1,), dtype='f4')
     f.create_dataset('/real', data=data, dtype='f4')
-    f.create_dataset('/scaled', data=0., shape=(1,), dtype='f4')
     f.create_dataset('/pixel_size', data=0., shape=(1,), dtype='f4')
-    f.create_dataset('/shifted', data=0., shape=(1,), dtype='f4')
     f.create_dataset('/version', data=2, shape=(1,), dtype='i4')
     f.close()
 
