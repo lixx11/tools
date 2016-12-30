@@ -55,7 +55,7 @@ def pol2cart(rho, theta):
     return x, y
 
 
-def save_as_Hawk_input_file(data, filename='hawk_input.h5', phased=False, scaled=False, shifted=False):
+def save_as_Hawk_input_file(data, filename='hawk_input.h5', phased=False, scaled=False, shifted=False, center=None):
     """Summary
     
     Parameters
@@ -70,6 +70,8 @@ def save_as_Hawk_input_file(data, filename='hawk_input.h5', phased=False, scaled
         True for amplitude, False for intensity.
     shifted : bool, optional
         True for 0-freq in the center, False for 0-freq at corners.
+    center : ndarray, optional
+        Image center, specified by 3 elements: cx, cy, cz=0.
     
     Returns
     -------
@@ -77,6 +79,11 @@ def save_as_Hawk_input_file(data, filename='hawk_input.h5', phased=False, scaled
         None
     """
     f = h5py.File(filename, 'w')
+    if center is None:
+        center = [data.shape[0]//2, data.shape[1]//2, 0.]
+    else:
+        center = [center[0], center[1], 0.]
+    center = np.asarray(center)
     data = data.reshape((data.shape[0], data.shape[1], 1))
     if phased:
         f.create_dataset('/phased', data=1., shape=(1,), dtype='f4')
@@ -91,7 +98,7 @@ def save_as_Hawk_input_file(data, filename='hawk_input.h5', phased=False, scaled
     else:
         f.create_dataset('/shifted', data=0., shape=(1,), dtype='f4')
     f.create_dataset('/detector_distance', data=1., shape=(1,), dtype='f4')
-    f.create_dataset('/image_center', shape=(3,), dtype='f4')
+    f.create_dataset('/image_center', data=center, shape=(3,), dtype='f4')
     f.create_dataset('/lambda', data=1., shape=(1,), dtype='f4')
     f.create_dataset('/mask', data=np.ones_like(data), dtype='i4')
     f.create_dataset('/num_dimensions', data=2., shape=(1,), dtype='f4')
