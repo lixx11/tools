@@ -279,7 +279,7 @@ class MainWindow(QMainWindow):
             shifted = self.params.param('Output', 'Hawk h5 option', 'Shifted').value()
             filename = self.params.param('Output', 'Hawk h5 option', 'Filename').value()
             print_with_timestamp('Write current plot to Hawk input h5 file: %s.' % filename)
-            save_as_Hawk_input_file(self.dispData, filename=filename, phased=phased, scaled=scaled, shifted=shifted, center=self.center)
+            save_as_Hawk_input_file(self.dispData.T, filename=filename, phased=phased, scaled=scaled, shifted=shifted, center=self.center)
 
 
     def curvePlotHoldOnSlot(self, _, curvePlotHoldOn):
