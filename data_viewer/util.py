@@ -100,7 +100,7 @@ def save_as_Hawk_input_file(data, filename='hawk_input.h5', phased=False, scaled
     f.create_dataset('/detector_distance', data=1., shape=(1,), dtype='f4')
     f.create_dataset('/image_center', data=center, shape=(3,), dtype='f4')
     f.create_dataset('/lambda', data=1., shape=(1,), dtype='f4')
-    f.create_dataset('/mask', data=np.ones_like(data), dtype='i4')
+    f.create_dataset('/mask', data=(data > 0), dtype='i4')
     f.create_dataset('/num_dimensions', data=2., shape=(1,), dtype='f4')
     f.create_dataset('/real', data=data, dtype='f4')
     f.create_dataset('/pixel_size', data=0., shape=(1,), dtype='f4')
