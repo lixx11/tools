@@ -158,6 +158,7 @@ def calc_radial_profile(image, center, binsize=1., mask=None, mode='sum'):
         mask = (mask > 0.5).astype(np.float64)
     else:
         mask = np.ones_like(image)
+    image *= mask  # apply mask on input image
     y, x = np.indices((image.shape))
     r = np.sqrt((x - center[0])**2. + (y - center[1])**2.)
     bin_r = r / binsize
@@ -223,7 +224,7 @@ def calc_angular_profile(image, center, binsize=1., mask=None, mode='sum'):
         mask = (mask > 0.5).astype(np.float64)
     else:
         mask = np.ones_like(image)
-    image = image * mask 
+    image *= mask 
     y, x = np.indices((image.shape))
     theta = np.rad2deg(np.arctan2(y-center[1], x-center[0]))
     bin_theta = theta.copy()
@@ -281,7 +282,7 @@ def calc_across_center_line_profile(image, center, angle=0., width=1, mask=None,
         mask = (mask > 0.5).astype(np.float64)
     else:
         mask = np.ones_like(image)
-    image = image * mask 
+    image *= mask 
     # generate a larger image if the given center is not the center of the image.
     sy, sx = image.shape
     if sy % 2 == 0:
