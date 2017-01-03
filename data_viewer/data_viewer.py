@@ -438,12 +438,10 @@ class MainWindow(QMainWindow):
             
     def maybePlotProfile(self):
         if self.dispData is not None:
-            if self.mask is None:
-                mask = np.ones_like(self.dispData)
-            else:
+            if self.maskFlag == True and self.mask is not None:
                 mask = self.mask.copy()
-            if self.maskFlag == True:
-                assert mask.shape == self.dispData.shape
+            else:
+                mask = np.ones_like(self.dispData)
             if self.feature == 'radial':
                 profile = calc_radial_profile(self.dispData, self.center, mask=mask, mode=self.profileMode)
             elif self.feature == 'angular':
