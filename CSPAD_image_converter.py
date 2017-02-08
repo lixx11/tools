@@ -23,13 +23,13 @@ import sys
 
 class CSPADImageConverter(object):
     """docstring for CSPADImageConverter"""
-    def __init__(self, raw_data, geom_file, method='linear', padding=10.E-3, pixel_size=0.11E-3, show=False):
+    def __init__(self, raw_data, geom_file, method='nearest', padding=10.E-3, pixel_size=0.11E-3, show=False):
         """Summary
         
         Args:
             raw_data (numpy.ndarray): raw data, the size must be 1480*1552.
             geom_file (string): CrystFEL, psana or Cheetah geometry file.
-            method (str, optional): Interpolation method. Default: linear.
+            method (str, optional): Interpolation method. Default: nearest.
             padding (float, optional): add padding around converted pattern, in m.
             pixel_size (float, optional): detector pixel size in m.
             show (bool, optional): Wether show converted data or not.
