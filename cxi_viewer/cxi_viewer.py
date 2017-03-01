@@ -9,8 +9,8 @@ Options:
     -f data.cxi                                      Specify cxi file for visulization.
     -g geometry_file                                 Geometry file in cheetah, crystfel or psana format.
     --start=<start_from>                             First frame to render [default: 0].
-    --spind-predicted=<spind_predicted.npy>          Predicted spots from spind.
-    --crystfel-stream=<crystfel.stream>              CrystFEL stream file.
+    --spind-stream=<spind.stream>                 CrystFEL stream file using SPIND as auto-indexer.
+    --crystfel-stream=<crystfel.stream>              Another crystFEL stream file.
     --cmin=<cmin>                                    Color level lower limit [default: 0].
     --cmax=<cmax>                                    Color level upper limit [default: 500].
 """
@@ -71,15 +71,15 @@ def load_geom(filename):
 class CXIViewer(pg.ImageView):
     """docstring for CXIViewer"""
     def __init__(self, cxi_file, geom_file, start_from,
-                 spind_predicted, crystfel_stream,
+                 spind_stream, crystfel_stream,
                  cmin, cmax):
         super(CXIViewer, self).__init__()
         self.cxi_file = cxi_file
         self.geom_file = geom_file
         self.indexed_events = []
 
-        if spind_predicted is not None:
-            self.spind_predicted = np.load(spind_predicted)
+        if spind_stream is not None:
+            self.spind_predicted = get_reflection_from_stream(spind_stream)
             self.show_spind_spots = True
             for i in range(len(self.spind_predicted)):
                 self.indexed_events.append(self.spind_predicted[i]['event'])
@@ -166,11 +166,20 @@ class CXIViewer(pg.ImageView):
                 if self.spind_predicted[i]['event'] == event:
                     predicted_spots = self.spind_predicted[i]['predicted_spots']
                     print('%d spots predicted by spind' % predicted_spots.shape[0])
+                    spots_x = []
+                    spots_y = []
+                    for j in range(predicted_spots.shape[0]):
+                        ps_x, ps_y = predicted_spots[j,:]
+                        ps_x, ps_y = int(round(ps_x)), int(round(ps_y))
+                        crystfel_remap_x = int(self.geom_x[ps_y][ps_x] / pixel_size) + self.offset_x
+                        crystfel_remap_y = int(self.geom_y[ps_y][ps_x] / pixel_size) + self.offset_y
+                        spots_x.append(crystfel_remap_x)
+                        spots_y.append(crystfel_remap_y)
                     p = pg.ScatterPlotItem()
                     self.getView().addItem(p)
-                    self.spind_predicted_spot_items.append(p)
-                    p.setData((predicted_spots[:,0] + self.offset_x).tolist(), (predicted_spots[:,1] + self.offset_y).tolist(), 
-                              symbol='o', size=10, brush=(255,255,255,0), pen='g')
+                    self.crystfel_predicted_spot_items.append(p)
+                    p.setData(spots_x, spots_y, symbol='o', size=10, brush=(255,255,255,0), pen='g')
+
         # render crystfel predicted spots
         if self.show_crystfel_spots:
             event = frame
@@ -236,15 +245,15 @@ if __name__ == '__main__':
     cxi_file = argv['-f']
     geom_file = argv['-g']
     start_from = int(argv['--start'])
-    spind_predicted = argv['--spind-predicted']
+    spind_stream = argv['--spind-stream']
     crystfel_stream = argv['--crystfel-stream']
     cmin = float(argv['--cmin'])
     cmax = float(argv['--cmax'])
     print('=' * 60)
     print('Loading CXI File: %s' % cxi_file)
     print('Using Geometry File: %s' % geom_file)
-    if spind_predicted is not None:
-        print('Rendering SPIND predicted spots from: %s' % spind_predicted)
+    if spind_stream is not None:
+        print('Rendering SPIND predicted spots from: %s' % spind_stream)
     if crystfel_stream is not None:
         print('Rendering CRYSTFEL predicted spots from: %s' % crystfel_stream)
     print('=' * 60)
@@ -254,7 +263,7 @@ if __name__ == '__main__':
     win = QtGui.QMainWindow()
     win.resize(800,800)
     cxi_viewer = CXIViewer(cxi_file, geom_file, start_from,
-                           spind_predicted, crystfel_stream,
+                           spind_stream, crystfel_stream,
                            cmin, cmax)
     win.setCentralWidget(cxi_viewer)
     win.show()
