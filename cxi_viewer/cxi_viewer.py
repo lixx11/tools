@@ -94,6 +94,7 @@ class CXIViewer(pg.ImageView):
                 p.clear()
         img_remap = np.zeros((self.nx, self.ny))
         img_remap[self.x.ravel(), self.y.ravel()] = self.data[frame].ravel()
+        img_remap[0,0] = 500
         self.setImage(img_remap, autoRange=False, autoLevels=False)
         self.setLevels(self.level[0], self.level[1])
         n_peaks = 0
@@ -165,13 +166,18 @@ class CXIViewer(pg.ImageView):
             last_indexed_event = self.indexed_events[np.where((self.indexed_events - self.frame) < 0)[0][-1]]
             self.frame = last_indexed_event
             self.update(self.frame)
-        elif key == QtCore.Qt.Key_S:
+        elif key == QtCore.Qt.Key_Space:  # display information of mouse location
+            pos = self.getView().mapToView(QtGui.QCursor().pos())
+            x, y = pos.x(), pos.y()
+            intensity = self.image[y, x]
+            print('(%d, %d) -> (%d, %d), %.2f' % (x, y, x-self.offset_x, y-self.offset_y, intensity))
+        elif key == QtCore.Qt.Key_S:  # show SPIND predicted spots or not
             if self.show_spind_spots == True:
                 self.show_spind_spots = False
             elif self.show_spind_spots == False:
                 self.show_spind_spots = True
             self.update(self.frame)
-        elif key == QtCore.Qt.Key_C:
+        elif key == QtCore.Qt.Key_C:  # show crystfel predicted spots or not
             if self.show_crystfel_spots == True:
                 self.show_crystfel_spots = False
             elif self.show_crystfel_spots == False:
