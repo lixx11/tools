@@ -173,6 +173,40 @@ def get_chunk_num(stream_file):
     return total_chunks
 
 
+def parse_abcstar(abcstar_str):
+    _, xstarx, xstary, xstarz, _ = abcstar_str.split(" ")
+    xstar = float(xstarx), float(xstary), float(xstarz)
+    xstar = np.asarray([xstarx, xstary, xstarz], dtype=np.float) * 1E-9  # in per m
+    return xstar
+
+
+def to_spind_file(index_stats, filepath):
+    """Write abc star to file in spind format
+    
+    Args:
+        filepath (TYPE): Description
+    
+    Returns:
+        TYPE: Description
+    """
+    chunks = []
+    for index_stat in index_stats:
+        chunks += index_stat.chunks
+    # sort chunks by event id
+    chunks.sort(key=lambda x: x.event)
+    f = open(filepath, 'w')
+    for c in chunks:
+        if c.indexed_by == 'none':
+            f.write('%6d %.2f %.4E %.4E %.4E %.4E %.4E %.4E %.4E %.4E %.4E\n'
+                  % (c.event, 0.0, 1, 0, 0, 0, 1, 0, 0, 0, 1))
+        else:
+            cr = c.crystal
+            f.write('%6d %.2f %.4E %.4E %.4E %.4E %.4E %.4E %.4E %.4E %.4E\n'
+                  % (c.event, 1.0, cr.astar[0], cr.astar[1], cr.astar[2],
+                                         cr.bstar[0], cr.bstar[1], cr.bstar[2],
+                                         cr.cstar[0], cr.cstar[1], cr.cstar[2]))
+
+
 def parse_stream(filepath, max_chunks=np.inf):
     """Summary
     
@@ -246,6 +280,12 @@ def parse_stream(filepath, max_chunks=np.inf):
                                         ga = float(CP[8])
                                         cp = CellParameter(a, b, c, al, be, ga)
                                         crystal.cell_parameter = cp
+                                    elif "astar" in newL:
+                                        crystal.astar = parse_abcstar(newL.split("=")[1])
+                                    elif "bstar" in newL:
+                                        crystal.bstar = parse_abcstar(newL.split("=")[1])
+                                    elif "cstar" in newL:
+                                        crystal.cstar = parse_abcstar(newL.split("=")[1])
                                     elif "lattice_type" in newL:
                                         crystal.lattice_type = newL.split("=")[1][1:-1]
                                     elif "centering" in newL:
