@@ -9,6 +9,7 @@ Options:
     -f data.cxi                                      Image file in cxi format.
     -g geom.h5                                       Geometry file in hdf5 format.
     -o output_dir                                    Output directory [default: output].
+    --start=<start_event>                            Start event id [default: 0].
     --sort-by=<metric>                               Sort peaks by certain metric [default: SNR].
     --res=<resolution>                               Resolution threshold for high priority peaks in angstrom [default: 4.5].
 """
@@ -56,6 +57,7 @@ if __name__ == '__main__':
     geom_file = argv['-g']
     sort_by = argv['--sort-by']
     res_threshold = float(argv['--res']) * 1.E-10  # convert resolution in angstroms to meters.
+    start_event = int(argv['--start'])
 
     # load cxi file
     data = h5py.File(cxi_file,'r')
@@ -73,7 +75,7 @@ if __name__ == '__main__':
     nb_events = data['/cheetah/event_data/hit'][:].size
     print('Processing %s with geometry %s' % (cxi_file, geom_file))
     for event_id in tqdm(range(nb_events)):
-        output = output_dir + '/' + basename + 'e' + str(event_id) + '.txt'
+        output = output_dir + '/' + basename + 'e' + str(event_id + start_event) + '.txt'
         nb_peaks = np.nonzero(data['entry_1/result_1/peakTotalIntensity'][event_id][:])[0].size
         peak_list = []
         for peak_id in range(nb_peaks):
