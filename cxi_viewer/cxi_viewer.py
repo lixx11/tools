@@ -9,7 +9,7 @@ Options:
     -f data.cxi                                      Specify cxi file for visulization.
     -g geometry_file                                 Geometry file in cheetah, crystfel or psana format.
     --start=<start_from>                             First frame to render [default: 0].
-    --spind-stream=<spind.stream>                 CrystFEL stream file using SPIND as auto-indexer.
+    --spind-stream=<spind.stream>                    CrystFEL stream file using SPIND as auto-indexer.
     --crystfel-stream=<crystfel.stream>              Another crystFEL stream file.
     --cmin=<cmin>                                    Color level lower limit [default: 0].
     --cmax=<cmax>                                    Color level upper limit [default: 500].
@@ -22,7 +22,6 @@ from docopt import docopt
 import numpy as np
 import h5py
 from stream_parser import parse_stream
-import psgeom
 import os
 
 
@@ -59,6 +58,7 @@ def load_geom(filename):
         f = h5py.File('.geom.h5', 'r')
         return f['x'].value, f['y'].value, f['z'].value
     elif ext == '.psana':
+        from psgeom import camera
         cspad = camera.Cspad.from_psana_file(filename)
         cspad.to_cheetah_file('.geom.h5')
         f = h5py.File('.geom.h5', 'r')
@@ -78,6 +78,8 @@ class CXIViewer(pg.ImageView):
         self.geom_file = geom_file
         self.indexed_events = []
 
+        self.spind_predicted = None
+        self.crystfel_predicted = None
         if spind_stream is not None:
             self.spind_predicted = get_reflection_from_stream(spind_stream)
             self.show_spind_spots = True
@@ -224,12 +226,16 @@ class CXIViewer(pg.ImageView):
             intensity = self.image[y, x]
             print('(%d, %d) -> (%d, %d), %.2f' % (x, y, x-self.offset_x, y-self.offset_y, intensity))
         elif key == QtCore.Qt.Key_S:  # show SPIND predicted spots or not
+            if self.spind_predicted is None:
+                return None
             if self.show_spind_spots == True:
                 self.show_spind_spots = False
             elif self.show_spind_spots == False:
                 self.show_spind_spots = True
             self.update(self.frame)
         elif key == QtCore.Qt.Key_C:  # show crystfel predicted spots or not
+            if self.crystfel_predicted is None:
+                return None
             if self.show_crystfel_spots == True:
                 print 'disable crystfel spot display'
                 self.show_crystfel_spots = False
