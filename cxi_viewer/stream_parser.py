@@ -15,6 +15,7 @@ import scipy as sp
 import os
 import sys
 from docopt import docopt
+import re
 
 
 class Chunk(object):
@@ -167,10 +168,12 @@ class IndexStat(object):
 
 
 def get_chunk_num(stream_file):
-    import subprocess
-    grep = subprocess.Popen(('grep', 'Begin chunk', stream_file), stdout=subprocess.PIPE)
-    total_chunks = sum([1 for line in grep.stdout])
-    return total_chunks
+    nb_chunks = 0
+    f = open(stream_file, 'r')
+    for line in open(stream_file, 'r'):
+        if re.search("Begin chunk", line):
+            nb_chunks += 1
+    return nb_chunks
 
 
 def parse_abcstar(abcstar_str):
@@ -272,12 +275,16 @@ def parse_stream(filepath, max_chunks=np.inf):
                                 if newL:  
                                     if "Cell parameters" in newL:
                                         CP = newL.split(" ")
-                                        a = float(CP[2]) * 10.
-                                        b = float(CP[3]) * 10.
-                                        c = float(CP[4]) * 10.
-                                        al = float(CP[6])
-                                        be = float(CP[7])
-                                        ga = float(CP[8])
+                                        if len(CP) == 6:
+                                            a = float(CP[2]) * 10.
+                                            b = float(CP[3]) * 10.
+                                            c = float(CP[4]) * 10.
+                                            al = float(CP[6])
+                                            be = float(CP[7])
+                                            ga = float(CP[8])
+                                        else:  # abnormal cell parameters
+                                            a, b, c = 0., 0., 0.
+                                            al, be, ga = 0., 0., 0.
                                         cp = CellParameter(a, b, c, al, be, ga)
                                         crystal.cell_parameter = cp
                                     elif "astar" in newL:
