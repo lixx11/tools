@@ -123,6 +123,8 @@ class CXIViewer(pg.ImageView):
         self.indexed_events.sort()
         if spind_abcstar is not None:
             self.spind_abcstar = np.loadtxt(spind_abcstar)
+        else:
+            self.spind_abcstar = None
         self.show_hkl = show_hkl
         self.level = [cmin, cmax]
 
@@ -176,9 +178,10 @@ class CXIViewer(pg.ImageView):
         n_peaks = 0
         peaks_x = []
         peaks_y = []
-        idx = np.where(self.spind_abcstar[:,0] == float(frame))[0][0]
-        A = self.spind_abcstar[idx,2:].reshape((3,3)).T  # transform matrix, from q vector to miller index
-        A_inv = np.linalg.inv(A)
+        if self.show_hkl and self.spind_abcstar is not None:
+            idx = np.where(self.spind_abcstar[:,0] == float(frame))[0][0]
+            A = self.spind_abcstar[idx,2:].reshape((3,3)).T  # transform matrix, from q vector to miller index
+            A_inv = np.linalg.inv(A)
         for i in range(len(self.peaks_x[frame])):
             peak_x = int(round(self.peaks_x[frame][i]))
             peak_y = int(round(self.peaks_y[frame][i]))
@@ -194,7 +197,7 @@ class CXIViewer(pg.ImageView):
                 if self.show_hkl:
                     q = det2fourier(peak_remap_x_in_m, peak_remap_y_in_m, 1.306098E-10, 136.4028E-3)
                     H, K, L = A_inv.dot(q*1.E10)
-                    hkl_item = pg.TextItem(html='<div style="text-align: center"><span style="color: #FFF;">%.2f %.2f %.2f</span></div>' 
+                    hkl_item = pg.TextItem(html='<div style="text-align: center"><span style="color: #FFF; font-size:20px">%.2f %.2f %.2f</span></div>' 
                                             % (H, K, L), anchor=(-0.1,-0.5), border='r', fill=(0, 0, 255, 100))
                     self.getView().addItem(hkl_item)
                     hkl_item.setPos(peak_remap_x_in_pixel, peak_remap_y_in_pixel)
@@ -227,7 +230,7 @@ class CXIViewer(pg.ImageView):
                         if self.show_hkl:
                             H, K, L = HKLs[j]
                             I = Is[j]
-                            hkl_item = pg.TextItem(html='<div style="text-align: center"><span style="color: #FFF;">%d %d %d %.1E</span></div>' % 
+                            hkl_item = pg.TextItem(html='<div style="text-align: center"><span style="color: #FFF; font-size:20px">%d %d %d %.1E</span></div>' % 
                                                     (H, K, L, I), anchor=(1.1,1.5), border='g', fill=(0, 0, 255, 100))
                             self.getView().addItem(hkl_item)
                             hkl_item.setPos(spot_x, spot_y)
@@ -243,7 +246,9 @@ class CXIViewer(pg.ImageView):
             for i in range(len(self.crystfel_predicted)):
                 if self.crystfel_predicted[i]['event'] == event:
                     predicted_spots = self.crystfel_predicted[i]['predicted_spots']
-                    print('%d spots predicted by crystfel' % predicted_spots.shape[0])
+                    HKLs = self.crystfel_predicted[i]['HKLs']
+                    Is = self.crystfel_predicted[i]['Is']
+                    print('%d spots (%d negative) predicted by crystfel' % (predicted_spots.shape[0], (Is < 0.).sum()))
                     spots_x = []
                     spots_y = []
                     for j in range(predicted_spots.shape[0]):
@@ -253,6 +258,14 @@ class CXIViewer(pg.ImageView):
                         spot_y = int(self.geom_y[ps_y,ps_x] / pixel_size) + self.offset_y
                         spots_x.append(spot_x)
                         spots_y.append(spot_y)
+                        if self.show_hkl:
+                            H, K, L = HKLs[j]
+                            I = Is[j]
+                            hkl_item = pg.TextItem(html='<div style="text-align: center"><span style="color: #FFF; font-size:20px">%d %d %d %.1E</span></div>' % 
+                                                    (H, K, L, I), anchor=(1.1,-0.5), border='y', fill=(0, 0, 255, 100))
+                            self.getView().addItem(hkl_item)
+                            hkl_item.setPos(spot_x, spot_y)
+                            self.hkl_items.append(hkl_item)
                     p = pg.ScatterPlotItem()
                     self.crystfel_predicted_spot_items.append(p)
                     p.setData(spots_x, spots_y, symbol='o', size=8, brush=(255,255,255,0), pen='y')
@@ -313,13 +326,16 @@ if __name__ == '__main__':
     spind_stream = argv['--spind-stream']
     crystfel_stream = argv['--crystfel-stream']
     show_hkl = argv['--show-hkl']
+    spind_abcstar = argv['--spind-abcstar']
     if show_hkl == 'True':
-        spind_abcstar = argv['--spind-abcstar']
+        show_hkl = True
         if spind_abcstar is None:
             print('You must specify a SPIND indexing file to show HKLs!!!')
             sys.exit()
         else:
             print('Calculate decimal HKLs using SPIND indexing file: %s' % spind_abcstar)
+    else:
+        show_hkl = False
     cmin = float(argv['--cmin'])
     cmax = float(argv['--cmax'])
     print('=' * 60)
