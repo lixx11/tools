@@ -18,6 +18,7 @@ import os
 import sys
 from docopt import docopt
 import re
+import matplotlib.pyplot as plt
 
 
 class Reflection(object):
