@@ -18,6 +18,8 @@ import os
 import sys
 from docopt import docopt
 import re
+import matplotlib
+matplotlib.use("agg")
 import matplotlib.pyplot as plt
 
 
