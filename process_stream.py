@@ -102,7 +102,10 @@ if __name__ == '__main__':
                         n_ref_Is.append(I)
                         n_n += 1
                     n_tol += 1
-                n_ref_ratio.append(float(n_n) / float(n_tol))
+                if n_tol == 0:
+                    n_ref_ratio.append(1.0)
+                else:
+                    n_ref_ratio.append(float(n_n) / float(n_tol))
                 nb_peaks.append(nb_peak)
                 nb_reflections += n_tol
             else:
