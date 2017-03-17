@@ -9,8 +9,8 @@ Options:
     -f data.cxi                                     Specify cxi file for visulization.
     -g geometry_file                                Geometry file in cheetah, crystfel or psana format.
     --start=start_from                              First frame to render [default: 0].
-    --spind-stream=spind.stream                     CrystFEL stream file using SPIND as auto-indexer.
-    --crystfel-stream=crystfel.stream               Another crystFEL stream file.
+    --stream1=first.stream                          First stream file.
+    --stream2=second.stream                         Second stream file.
     --spind-abcstar=spind.txt                       Indexing results of SPIND containing abcstar.
     --show-hkl=show_hkl                             Whether show HKL indice [default: True].
     --cmin=cmin                                     Color level lower limit [default: 0].
@@ -30,9 +30,10 @@ import os
 pixel_size = 110E-6  # CSPAD pixel size
 
 
-def get_reflection_from_stream(filename):
+def load_data_from_stream(filename):
+    """load reflection information from stream file"""
     chunks = []
-    records = []
+    data = []
     index_stats = parse_stream(filename)
     for index_stat in index_stats:
         if index_stat.index_method != 'none':
@@ -48,11 +49,12 @@ def get_reflection_from_stream(filename):
         rawXYs = np.asarray(rawXYs)
         HKLs = np.asarray(HKLs)
         Is = np.asarray(Is)
-        records.append({'event': c.event, 'predicted_spots': rawXYs, 'HKLs': HKLs, 'Is': Is})
-    return records
+        data.append({'event': c.event, 'rawXYs': rawXYs, 'HKLs': HKLs, 'Is': Is})
+    return data
 
 
 def load_geom(filename):
+    """load geometry: x, y, z coordinates from cheetah, crystfel or psana geom file"""
     print "load %s" % filename
     ext = os.path.splitext(filename)[1]
     if ext == '.h5':
@@ -95,7 +97,7 @@ def det2fourier(det_x, det_y, wave_length, detector_distance):
 class CXIViewer(pg.ImageView):
     """docstring for CXIViewer"""
     def __init__(self, cxi_file, geom_file, start_from,
-                 spind_stream, crystfel_stream,
+                 stream1, stream2,
                  spind_abcstar, show_hkl, 
                  cmin, cmax):
         super(CXIViewer, self).__init__()
@@ -103,22 +105,22 @@ class CXIViewer(pg.ImageView):
         self.geom_file = geom_file
         self.indexed_events = []
 
-        self.spind_predicted = None
-        self.crystfel_predicted = None
-        if spind_stream is not None:
-            self.spind_predicted = get_reflection_from_stream(spind_stream)
-            self.show_spind_spots = True
-            for i in range(len(self.spind_predicted)):
-                self.indexed_events.append(self.spind_predicted[i]['event'])
+        self.stream1_reflections = None
+        self.stream2_reflections = None
+        if stream1 is not None:
+            self.stream1_data = load_data_from_stream(stream1)
+            self.show_stream1_reflections = True
+            for i in range(len(self.stream1_data)):
+                self.indexed_events.append(self.stream1_data[i]['event'])
         else:
-            self.show_spind_spots = False
-        if crystfel_stream is not None:
-            self.crystfel_predicted = get_reflection_from_stream(crystfel_stream)
-            self.show_crystfel_spots = True
-            for i in range(len(self.crystfel_predicted)):
-                self.indexed_events.append(self.crystfel_predicted[i]['event'])
+            self.show_stream1_reflections = False
+        if stream2 is not None:
+            self.stream2_data = load_data_from_stream(stream2)
+            self.show_stream2_reflections = True
+            for i in range(len(self.stream2_data)):
+                self.indexed_events.append(self.stream2_data[i]['event'])
         else:
-            self.show_crystfel_spots = False
+            self.show_stream2_reflections = False
         self.indexed_events = np.asarray(list(set(self.indexed_events)))
         self.indexed_events.sort()
         if spind_abcstar is not None:
@@ -152,8 +154,7 @@ class CXIViewer(pg.ImageView):
         self.center_item.setData([0+self.offset_x], [0+self.offset_y], symbol='+', size=20, brush=(255,255,255,0), pen='y')
         self.getView().addItem(self.center_item)
 
-        self.spind_predicted_spot_items = []
-        self.crystfel_predicted_spot_items = []
+        self.reflection_items = []
         self.hkl_items = []
 
         self.frame = start_from
@@ -164,9 +165,7 @@ class CXIViewer(pg.ImageView):
         # clear peaks and predicted spots in last frame
         for item in self.peak_items:
             self.getView().removeItem(item)
-        for item in self.spind_predicted_spot_items:
-            self.getView().removeItem(item)
-        for item in self.crystfel_predicted_spot_items:
+        for item in self.reflection_items:
             self.getView().removeItem(item)
         for item in self.hkl_items:
             self.getView().removeItem(item)
@@ -175,6 +174,8 @@ class CXIViewer(pg.ImageView):
         img_remap[0,0] = 500
         self.setImage(img_remap, autoRange=False, autoLevels=False)
         self.setLevels(self.level[0], self.level[1])
+
+        # render peaks extracted from cxi file
         n_peaks = 0
         peaks_x = []
         peaks_y = []
@@ -209,67 +210,47 @@ class CXIViewer(pg.ImageView):
         self.peak_items.append(p)
         print('%d peaks found in %d/%d frame' % (n_peaks, self.frame, self.data.shape[0]))
 
-        # render spind predicted spots
-        if self.show_spind_spots:
-            event = frame
-            for i in range(len(self.spind_predicted)):
-                if self.spind_predicted[i]['event'] == event:
-                    predicted_spots = self.spind_predicted[i]['predicted_spots']
-                    HKLs = self.spind_predicted[i]['HKLs']
-                    Is = self.spind_predicted[i]['Is']
-                    print('%d spots (%d negative) predicted by spind' % (predicted_spots.shape[0], (Is < 0.).sum()))
-                    spots_x = []
-                    spots_y = []
-                    for j in range(predicted_spots.shape[0]):
-                        ps_x, ps_y = predicted_spots[j,:]
-                        ps_x, ps_y = int(round(ps_x)), int(round(ps_y))
-                        spot_x = int(self.geom_x[ps_y,ps_x] / pixel_size) + self.offset_x  # spot x index in pixel
-                        spot_y = int(self.geom_y[ps_y,ps_x] / pixel_size) + self.offset_y  # spot y index in pixel
-                        spots_x.append(spot_x)
-                        spots_y.append(spot_y)
-                        if self.show_hkl:
-                            H, K, L = HKLs[j]
-                            I = Is[j]
-                            hkl_item = pg.TextItem(html='<div style="text-align: center"><span style="color: #FFF; font-size:20px">%d %d %d %.1E</span></div>' % 
-                                                    (H, K, L, I), anchor=(1.1,1.5), border='g', fill=(0, 0, 255, 100))
-                            self.getView().addItem(hkl_item)
-                            hkl_item.setPos(spot_x, spot_y)
-                            self.hkl_items.append(hkl_item)
-                    p = pg.ScatterPlotItem()
-                    self.getView().addItem(p)
-                    self.crystfel_predicted_spot_items.append(p)
-                    p.setData(spots_x, spots_y, symbol='o', size=10, brush=(255,255,255,0), pen='g')
+        # render stream1 reflections
+        if self.show_stream1_reflections:
+            self.render_reflections(self.stream1_data, frame, tag='1', anchor=(1.1,1.5), pen='g')
 
-        # render crystfel predicted spots
-        if self.show_crystfel_spots:
-            event = frame
-            for i in range(len(self.crystfel_predicted)):
-                if self.crystfel_predicted[i]['event'] == event:
-                    predicted_spots = self.crystfel_predicted[i]['predicted_spots']
-                    HKLs = self.crystfel_predicted[i]['HKLs']
-                    Is = self.crystfel_predicted[i]['Is']
-                    print('%d spots (%d negative) predicted by crystfel' % (predicted_spots.shape[0], (Is < 0.).sum()))
-                    spots_x = []
-                    spots_y = []
-                    for j in range(predicted_spots.shape[0]):
-                        ps_x, ps_y = predicted_spots[j,:]
-                        ps_x, ps_y = int(round(ps_x)), int(round(ps_y))
-                        spot_x = int(self.geom_x[ps_y,ps_x] / pixel_size) + self.offset_x
-                        spot_y = int(self.geom_y[ps_y,ps_x] / pixel_size) + self.offset_y
-                        spots_x.append(spot_x)
-                        spots_y.append(spot_y)
-                        if self.show_hkl:
-                            H, K, L = HKLs[j]
-                            I = Is[j]
-                            hkl_item = pg.TextItem(html='<div style="text-align: center"><span style="color: #FFF; font-size:20px">%d %d %d %.1E</span></div>' % 
-                                                    (H, K, L, I), anchor=(1.1,-0.5), border='y', fill=(0, 0, 255, 100))
-                            self.getView().addItem(hkl_item)
-                            hkl_item.setPos(spot_x, spot_y)
-                            self.hkl_items.append(hkl_item)
-                    p = pg.ScatterPlotItem()
-                    self.crystfel_predicted_spot_items.append(p)
-                    p.setData(spots_x, spots_y, symbol='o', size=8, brush=(255,255,255,0), pen='y')
-                    self.getView().addItem(p)
+        # render stream2 reflections
+        if self.show_stream2_reflections:
+            self.render_reflections(self.stream2_data, frame, tag='2', anchor=(1.1,-0.5), pen='y')
+
+    def render_reflections(self, stream_data, frame, anchor=(0, 0), pen='g', tag=''):
+        event = frame
+        images = filter(lambda image: image['event'] == event, stream_data)
+        if len(images) == 0:
+            return None  # this event not exist
+        else:
+            assert len(images) == 1            
+        image = images[0]
+        rawXYs = image['rawXYs']
+        HKLs = image['HKLs']
+        Is = image['Is']
+        print('%d reflections including %d negative tagged by %s' % (Is.size, (Is < 0.).sum(), tag))
+        spots_x = []
+        spots_y = []
+        for j in range(Is.size):
+            ps_x, ps_y = rawXYs[j,:]
+            ps_x, ps_y = int(round(ps_x)), int(round(ps_y))
+            spot_x = int(self.geom_x[ps_y,ps_x] / pixel_size) + self.offset_x  # spot x index in pixel
+            spot_y = int(self.geom_y[ps_y,ps_x] / pixel_size) + self.offset_y  # spot y index in pixel
+            spots_x.append(spot_x)
+            spots_y.append(spot_y)
+            if self.show_hkl:
+                H, K, L = HKLs[j]
+                I = Is[j]
+                hkl_item = pg.TextItem(html='<div style="text-align: center"><span style="color: #FFF; font-size:20px">%d %d %d %.1E</span></div>' % 
+                                        (H, K, L, I), anchor=anchor, border=pen, fill=(0, 0, 255, 100))
+                self.getView().addItem(hkl_item)
+                hkl_item.setPos(spot_x, spot_y)
+                self.hkl_items.append(hkl_item)
+        p = pg.ScatterPlotItem()
+        self.getView().addItem(p)
+        self.reflection_items.append(p)
+        p.setData(spots_x, spots_y, symbol='o', size=10, brush=(255,255,255,0), pen=pen)
 
     def keyPressEvent(self, event):
         pg.ImageView.keyPressEvent(self, event)
@@ -323,8 +304,8 @@ if __name__ == '__main__':
     cxi_file = argv['-f']
     geom_file = argv['-g']
     start_from = int(argv['--start'])
-    spind_stream = argv['--spind-stream']
-    crystfel_stream = argv['--crystfel-stream']
+    stream1 = argv['--stream1']
+    stream2 = argv['--stream2']
     show_hkl = argv['--show-hkl']
     spind_abcstar = argv['--spind-abcstar']
     if show_hkl == 'True':
@@ -341,10 +322,10 @@ if __name__ == '__main__':
     print('=' * 60)
     print('Loading CXI File: %s' % cxi_file)
     print('Using Geometry File: %s' % geom_file)
-    if spind_stream is not None:
-        print('Rendering SPIND predicted spots from: %s' % spind_stream)
-    if crystfel_stream is not None:
-        print('Rendering CRYSTFEL predicted spots from: %s' % crystfel_stream)
+    if stream1 is not None:
+        print('Rendering 1st series of reflections from: %s' % stream1)
+    if stream2 is not None:
+        print('Rendering 2nd series of reflections from: %s' % stream2)
     print('=' * 60)
 
     app = QtGui.QApplication(sys.argv)
@@ -352,7 +333,7 @@ if __name__ == '__main__':
     win = QtGui.QMainWindow()
     win.resize(800,800)
     cxi_viewer = CXIViewer(cxi_file, geom_file, start_from,
-                           spind_stream, crystfel_stream,
+                           stream1, stream2,
                            spind_abcstar, show_hkl, 
                            cmin, cmax)
     win.setCentralWidget(cxi_viewer)
