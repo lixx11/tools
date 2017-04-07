@@ -3,17 +3,21 @@ Usage:
     RAW_dat_parser.py <dat_files>... --ref=<ref_dat> [options]
 
 Options:
-    -h --help           Show this screen.
-    --ref=<ref_dat>     Reference RAW dat file.
-    --qmin=<qmin>       qmin to calculate scaling ratio [default: 0].
-    --qmax=<qmax>       qmax to calculate scaling ratio [default: 1E10].
-    --diff-mode=<diff_mode>     Plot difference in absolute scale or relative scale [default: relative].
+    -h --help                           Show this screen.
+    --ref=<ref_dat>                     Reference RAW dat file.
+    --qmin=<qmin>                       qmin to calculate scaling ratio [default: 0].
+    --qmax=<qmax>                       qmax to calculate scaling ratio [default: 1E10].
+    --diff-mode=<diff_mode>             Plot difference in absolute scale or relative scale [default: relative].
+    --smooth=<smooth>                   Smooth diff-curves or not [default: True].
+    --window-length=<window_length>     Window length parameter for smoothing [default: 7].
+    --poly-order=<poly_order>           The order of the polynomial used to fit the samples [default: 3].
 """
 
 import numpy as np 
 from docopt import docopt
 import matplotlib.pyplot as plt
 from scipy.stats import linregress
+from scipy.signal import savgol_filter
 
 
 def load_RAW_dat(filepath):
@@ -53,11 +57,15 @@ if __name__ == '__main__':
     import signal
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     argv = docopt(__doc__)
+    print argv
     ref_dat = argv['--ref']
     raw_dats = argv['<dat_files>']
     qmin = float(argv['--qmin'])
     qmax = float(argv['--qmax'])
     diff_mode = argv['--diff-mode']
+    smooth = argv['--smooth']
+    window_length = int(argv['--window-length'])
+    poly_order = int(argv['--poly-order'])
     ref_qs, ref_Is, ref_Es = load_RAW_dat(ref_dat)
     qmin_id = np.argmin(np.abs(ref_qs - qmin))
     qmax_id = np.argmin(np.abs(ref_qs - qmax))
@@ -86,25 +94,53 @@ if __name__ == '__main__':
         plt.semilogy(data['qs'], data['Is'], label=data['filename'])
     plt.legend()
     plt.title('SAXS profiles before scaling')
+
     plt.subplot(222)
     for data in data_list:
         plt.semilogy(data['qs'], data['scaling_Is'], label=data['filename'])
     plt.legend()
     plt.title('SAXS profiles after scaling')
+
     plt.subplot(223)
     for data in data_list:
+        x = data['qs']
         if diff_mode == 'absolute':
-            plt.plot(data['qs'], data['abs_diff'], label=data['filename'])
+            if smooth == 'False':
+                y = data['abs_diff']
+            elif smooth == 'True':
+                y = savgol_filter(data['abs_diff'], window_length, poly_order)
+            else:
+                print('Wrong smooth flag! True of False')
         elif diff_mode == 'relative':
-            plt.plot(data['qs'], data['rel_diff'], label=data['filename'])
+            if smooth == 'False':
+                y = data['abs_diff']
+            elif smooth == 'True':
+                y = savgol_filter(data['rel_diff'], window_length, poly_order)
+            else:
+                print('Wrong smooth flag! True of False')
+            plt.plot(x, y, label=data['filename'])
     plt.legend()
     plt.title('%s difference before scaling' % diff_mode)
+
     plt.subplot(224)
     for data in data_list:
+        x = data['qs']
         if diff_mode == 'absolute':
-            plt.plot(data['qs'], data['abs_scaling_diff'], label=data['filename'])
+            if smooth == 'False':
+                y = data['abs_scaling_diff']
+            elif smooth == 'True':
+                y = savgol_filter(data['abs_scaling_diff'], window_length, poly_order)
+            else:
+                print('Wrong smooth flag! True of False')
         elif diff_mode == 'relative':
-            plt.plot(data['qs'], data['rel_scaling_diff'], label=data['filename'])
+            if smooth == 'False':
+                y = data['rel_scaling_diff']
+            elif smooth == 'True':
+                y = savgol_filter(data['rel_scaling_diff'], window_length, poly_order)
+            else:
+                print('Wrong smooth flag! True of False')
+            plt.plot(x, y, label=data['filename'])
     plt.legend()
     plt.title('%s difference after scaling' % diff_mode)
+    
     plt.show()
