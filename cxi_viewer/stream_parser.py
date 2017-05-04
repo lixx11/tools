@@ -179,7 +179,7 @@ def get_chunk_num(stream_file):
 def parse_abcstar(abcstar_str):
     _, xstarx, xstary, xstarz, _ = abcstar_str.split(" ")
     xstar = float(xstarx), float(xstary), float(xstarz)
-    xstar = np.asarray([xstarx, xstary, xstarz], dtype=np.float) * 1E-9  # in per m
+    xstar = np.asarray([xstarx, xstary, xstarz], dtype=np.float) * 1E9  # in per m
     return xstar
 
 
@@ -192,6 +192,10 @@ def to_spind_file(index_stats, filepath):
     Returns:
         TYPE: Description
     """
+    # default value
+    match_rate = 0.
+    nb_pairs = 0
+    pair_dist = 0.
     chunks = []
     for index_stat in index_stats:
         chunks += index_stat.chunks
@@ -200,14 +204,16 @@ def to_spind_file(index_stats, filepath):
     f = open(filepath, 'w')
     for c in chunks:
         if c.indexed_by == 'none':
-            f.write('%6d %.2f %.4E %.4E %.4E %.4E %.4E %.4E %.4E %.4E %.4E\n'
-                  % (c.event, 0.0, 1, 0, 0, 0, 1, 0, 0, 0, 1))
+            f.write('%6d %.2f %4d %.4E %.4E %.4E %.4E %.4E %.4E %.4E %.4E %.4E %.4E\n'
+                  % (c.event, match_rate, nb_pairs, pair_dist, 
+                     1, 0, 0, 0, 1, 0, 0, 0, 1))
         else:
             cr = c.crystal
-            f.write('%6d %.2f %.4E %.4E %.4E %.4E %.4E %.4E %.4E %.4E %.4E\n'
-                  % (c.event, 1.0, cr.astar[0], cr.astar[1], cr.astar[2],
-                                         cr.bstar[0], cr.bstar[1], cr.bstar[2],
-                                         cr.cstar[0], cr.cstar[1], cr.cstar[2]))
+            f.write('%6d %.2f %4d %.4E %.4E %.4E %.4E %.4E %.4E %.4E %.4E %.4E %.4E\n'
+                  % (c.event, match_rate, nb_pairs, pair_dist,
+                    cr.astar[0], cr.astar[1], cr.astar[2],
+                    cr.bstar[0], cr.bstar[1], cr.bstar[2],
+                    cr.cstar[0], cr.cstar[1], cr.cstar[2]))
 
 
 def parse_stream(filepath, max_chunks=np.inf):
