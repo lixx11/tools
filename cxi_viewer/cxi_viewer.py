@@ -235,12 +235,18 @@ class StreamTable(QtGui.QDialog):
           event_id, 'test3', event_data)
         row_counter += 1
       if len(event_data) > 1:
-        self.table.setSpan(row_counter-len(event_data), 0,
+        self.table.setSpan(row_counter - len(event_data), 0,
           len(event_data), 1)
     for i in range(row_counter):
       item = self.table.item(i, 0)
       if int(item.text()) == current_event_id:
         self.table.scrollToItem(item)
+    nb_column = self.table.columnCount()
+    table_width = 0
+    for i in range(nb_column):
+      self.table.resizeColumnToContents(i)
+      table_width += self.table.columnWidth(i)
+    self.table.setFixedWidth(table_width)
 
 
 class CXIWindow(QtGui.QMainWindow):
