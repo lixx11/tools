@@ -41,6 +41,9 @@ def load_data_from_stream(filename):
         rawXYs = []
         HKLs = []
         Is = []
+        astar = c.crystal.astar
+        bstar = c.crystal.bstar
+        cstar = c.crystal.cstar
         for r in c.reflections:
             rawXYs.append([r.fs, r.ss])
             HKLs.append([r.h, r.k, r.l])
@@ -48,7 +51,12 @@ def load_data_from_stream(filename):
         rawXYs = np.asarray(rawXYs)
         HKLs = np.asarray(HKLs)
         Is = np.asarray(Is)
-        data[c.event] = {'rawXYs': rawXYs, 'HKLs': HKLs, 'Is': Is}
+        data[c.event] = {'rawXYs': rawXYs, 
+                         'HKLs': HKLs, 
+                         'Is': Is,
+                         'astar': astar,
+                         'bstar': bstar,
+                         'cstar': cstar}
     return data
 
 
@@ -106,6 +114,100 @@ class Geometry(object):
             return None
         
 
+def makeTabelItem(text):
+    """Make table item with text centered"""
+    item = QtGui.QTableWidgetItem(text)
+    item.setTextAlignment(QtCore.Qt.AlignCenter)
+    return item
+
+class StreamTable(QtGui.QDialog):
+    def __init__(self, parent=None):
+        super(StreamTable, self).__init__(parent)
+        dir_ = os.path.dirname(os.path.abspath(__file__))
+        uic.loadUi(dir_ + '/' + 'table.ui', self)
+        self.streams = {}
+
+    def merge_streams(self):
+        event_ids = []
+        for name, stream in self.streams.items():
+            event_ids += stream['data'].keys()
+        event_ids = list(set(event_ids))  # remove duplicates
+        event_ids.sort()
+
+        # merge streams into single list
+        self.merged_stream = []
+        for i in range(len(event_ids)):
+            event_id = event_ids[i]
+            event_data = {}
+            if self.streams.has_key('ref'):
+                if self.streams['ref']['data'].has_key(event_id):
+                    event_data['ref'] = self.streams['ref']['data'][event_id]
+            if self.streams.has_key('test1'):
+                if self.streams['test1']['data'].has_key(event_id):
+                    event_data['test1'] = self.streams['test1']['data'][event_id]
+            if self.streams.has_key('test2'):
+                if self.streams['test2']['data'].has_key(event_id):
+                    event_data['test2'] = self.streams['test2']['data'][event_id]
+            if self.streams.has_key('test3'):
+                if self.streams['test3']['data'].has_key(event_id):
+                    event_data['test3'] = self.streams['test3']['data'][event_id]
+            self.merged_stream.append((event_id, event_data))
+
+    def fillTableRowAt(self, row, event_id, label, data):
+        self.table.insertRow(row)
+        astar = data[label]['astar'] / 1E6  # in um
+        bstar = data[label]['bstar'] / 1E6 
+        cstar = data[label]['cstar'] / 1E6
+        # event
+        self.table.setItem(row, 0, 
+            makeTabelItem('%d' % (event_id)))
+        # stream label
+        self.table.setItem(row, 1, 
+            makeTabelItem('%s' % label))
+        # astar
+        self.table.setItem(row, 2, 
+            makeTabelItem('%.2f, %.2f, %.2f' % 
+                (astar[0], astar[1], astar[2])))
+        # bstar
+        self.table.setItem(row, 2, 
+            makeTabelItem('%.2f, %.2f, %.2f' % 
+                (bstar[0], bstar[1], bstar[2])))
+        # cstar
+        self.table.setItem(row, 2, 
+            makeTabelItem('%.2f, %.2f, %.2f' % 
+                (cstar[0], cstar[1], cstar[2])))
+
+    def updateTable(self, current_event_id):
+        self.merge_streams()
+        row_counter = 0
+        print('scroll to %d' % current_event_id)
+        for i in range(len(self.merged_stream)):
+            event_id, event_data = self.merged_stream[i]
+            if event_data.has_key('ref'):
+                self.fillTableRowAt(row_counter, 
+                    event_id, 'ref', event_data)
+                row_counter += 1
+            if event_data.has_key('test1'):
+                self.fillTableRowAt(row_counter, 
+                    event_id, 'test1', event_data)
+                row_counter += 1
+            if event_data.has_key('test2'):
+                self.fillTableRowAt(row_counter, 
+                    event_id, 'test2', event_data)
+                row_counter += 1
+            if event_data.has_key('test3'):
+                self.fillTableRowAt(row_counter, 
+                    event_id, 'test3', event_data)
+                row_counter += 1
+            if len(event_data) > 1:
+                self.table.setSpan(row_counter-len(event_data), 0,
+                    len(event_data), 1)
+        for i in range(row_counter):
+            item = self.table.item(i, 0)
+            if int(item.text()) == current_event_id:
+                self.table.scrollToItem(item)
+
+
 class CXIWindow(QtGui.QMainWindow):
     """docstring for CXIWindow"""
     def __init__(self, state_file):
@@ -115,6 +217,8 @@ class CXIWindow(QtGui.QMainWindow):
         uic.loadUi(dir_ + '/' + 'layout.ui', self)
         self.splitterH.setSizes([self.width()*0.7, self.width()*0.3])
         self.splitterV.setSizes([self.height()*0.7, self.height()*0.3])
+        # add stream table window
+        self.streamTable = StreamTable(self)
         # setup menu slots
         self.actionLoadCXI.triggered.connect(self.loadCXISlot)
         self.actionLoadGeom.triggered.connect(self.loadGeomSlot)
@@ -122,6 +226,7 @@ class CXIWindow(QtGui.QMainWindow):
         self.actionTestStream.triggered.connect(self.loadTestStreamSlot)
         self.actionLoadState.triggered.connect(self.loadStateSlot)
         self.actionSaveState.triggered.connect(self.saveStateSlot)
+        self.actionShowStreamTable.triggered.connect(self.showStreamTabelSlot)
         # initialize parameters
         self.frame = 0
         self.pixel_size = 110E-6  # 110um pixel of CSPAD
@@ -131,6 +236,7 @@ class CXIWindow(QtGui.QMainWindow):
         self.test_stream_files = []
         self.peak_items = []
         self.reflection_items = []
+        self.streams = {}  # all stream files and data
 
         # stream plot
         self.streamPlot.getPlotItem().setTitle('Stream Plot')
@@ -240,14 +346,19 @@ class CXIWindow(QtGui.QMainWindow):
         self.maybeLoadState(fpath)
 
     def maybeLoadState(self, fpath):
+        if fpath == '':
+            return
         import yaml
-        yml_file = file(fpath, 'r')
-        state = yaml.safe_load(yml_file)
-        yml_file.close()
-        self.maybeLoadCXI(state['cxi_file'])
-        self.maybeLoadGeom(state['geom_file'])
-        self.maybeLoadRefStream(state['ref_stream_file']) 
-        self.maybeLoadTestStream(state['test_stream_files'])
+        try:
+            yml_file = file(fpath, 'r')
+            state = yaml.safe_load(yml_file)
+            yml_file.close()
+            self.maybeLoadCXI(state['cxi_file'])
+            self.maybeLoadGeom(state['geom_file'])
+            self.maybeLoadRefStream(state['ref_stream_file']) 
+            self.maybeLoadTestStream(state['test_stream_files'])
+        except:
+            print('Invalid state file: %s' % fpath)
 
     def saveStateSlot(self):
         """Save configuration to state file"""
@@ -278,6 +389,10 @@ class CXIWindow(QtGui.QMainWindow):
             fpath = str(fpaths[i])
             self.test_stream_files.append(str(fpath))
             self.test_stream_data.append(load_data_from_stream(str(fpath)))
+            self.streams['test%d' % (i+1)] = {
+                'file': self.test_stream_files[-1],
+                'data': self.test_stream_data[-1]
+                }
             self.params.param('File Info', 
                 'Test Stream %d' % (i+1)).setValue(basename(str(fpath)))
         self.updateStreamPlot()
@@ -292,6 +407,8 @@ class CXIWindow(QtGui.QMainWindow):
             return
         self.ref_stream_file = str(fpath)
         self.ref_stream_data = load_data_from_stream(self.ref_stream_file)
+        self.streams['ref'] = {'file': self.ref_stream_file,
+                               'data': self.ref_stream_data}
         self.params.param('File Info', 
             'Reference Stream').setValue(basename(self.ref_stream_file))
         self.updateStreamPlot()
@@ -328,6 +445,11 @@ class CXIWindow(QtGui.QMainWindow):
         self.params.param('File Info', 
             'Geometry File').setValue(basename(self.geom_file))
         self.updateDisp()
+
+    def showStreamTabelSlot(self):
+        self.streamTable.streams = self.streams
+        self.streamTable.updateTable(self.frame)
+        self.streamTable.exec_()
 
     def render_reflections(self, stream_data, frame, 
         anchor=(0, 0), pen='r', size=5, tag=''):

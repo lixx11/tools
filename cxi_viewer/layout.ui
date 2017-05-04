@@ -45,7 +45,7 @@
     <property name="title">
      <string>File</string>
     </property>
-    <widget class="QMenu" name="menuLoad_stream_as">
+    <widget class="QMenu" name="menuLoadStreamAs">
      <property name="title">
       <string>Load Stream(s) as...</string>
      </property>
@@ -54,7 +54,7 @@
     </widget>
     <addaction name="actionLoadCXI"/>
     <addaction name="actionLoadGeom"/>
-    <addaction name="menuLoad_stream_as"/>
+    <addaction name="menuLoadStreamAs"/>
     <addaction name="separator"/>
     <addaction name="actionLoadState"/>
     <addaction name="actionSaveState"/>
