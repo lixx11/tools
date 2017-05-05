@@ -121,12 +121,61 @@ def makeTabelItem(text):
   item.setTextAlignment(QtCore.Qt.AlignCenter)
   return item
 
+
 class StreamTable(QtGui.QDialog):
   def __init__(self, parent=None):
     super(StreamTable, self).__init__(parent)
     dir_ = os.path.dirname(os.path.abspath(__file__))
     uic.loadUi(dir_ + '/' + 'table.ui', self)
+    # add slot for buttons
+    self.plotHistButton.clicked.connect(self.onClickedPlotHistSlot)
+    self.exportDataButton.clicked.connect(self.onClickedExportDataSlot)
+
     self.streams = {}
+
+  def onClickedPlotHistSlot(self):
+    import matplotlib.pyplot as plt 
+    plt.style.use('ggplot')
+
+    error = self.collect_error()
+    for dataset in error.keys():
+      if len(error[dataset] > 0):
+        print('plot for %s' % dataset)
+        plt.figure(dataset)
+        data = error[dataset][:,1]
+        valid_data = data[data < 1] # remove large error
+        plt.hist(valid_data)
+        plt.title('Number: %d  Mean: %.2E' %
+          (valid_data.size, valid_data.mean()))
+        plt.show(block=False)
+
+  def onClickedExportDataSlot(self):
+    error = self.collect_error()
+    for dataset in error:
+      if len(error[dataset]) > 0:
+        fname = '%s-error.txt' % dataset
+        np.savetxt(fname, 
+          error[dataset],
+          fmt='%5d %.5f')
+        print('%s error saved to %s' %
+          (dataset, fname))
+
+  def collect_error(self):
+    nb_row = self.table.rowCount()
+    error = {}
+    for i in [1, 2, 3]:
+      error['test%d' % i] = []
+    for i in range(nb_row):
+      dataset = str(self.table.item(i, 1).text())
+      astar_text = str(self.table.item(i, 5).text())
+      if '/' in astar_text:
+        astar_err = float(astar_text.split('/')[-1][:-1]) / 100.  # relative error
+        error[dataset].append([i, astar_err])
+    for i in [1, 2, 3]:
+      error['test%d' % i] = np.asarray(
+        error['test%d' % i])
+    return error
+    
 
   def merge_streams(self):
     event_ids = []
