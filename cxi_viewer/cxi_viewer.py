@@ -119,6 +119,7 @@ def makeTabelItem(text):
   """Make table item with text centered"""
   item = QtGui.QTableWidgetItem(text)
   item.setTextAlignment(QtCore.Qt.AlignCenter)
+  item.setFlags(QtCore.Qt.ItemIsEditable)
   return item
 
 
@@ -130,8 +131,15 @@ class StreamTable(QtGui.QDialog):
     # add slot for buttons
     self.plotHistButton.clicked.connect(self.onClickedPlotHistSlot)
     self.exportDataButton.clicked.connect(self.onClickedExportDataSlot)
-
+    # add slot for table
+    self.table.cellClicked.connect(self.onCellClickedSlot)
     self.streams = {}
+
+  def onCellClickedSlot(self, row, column):
+    item = self.table.item(row, 0)
+    frame = int(str(item.text()))
+    self.parent().params.param('Basic Operation', 
+      'Frame').setValue(frame)
 
   def onClickedPlotHistSlot(self):
     import matplotlib.pyplot as plt 
@@ -308,7 +316,7 @@ class CXIWindow(QtGui.QMainWindow):
     self.splitterH.setSizes([self.width()*0.7, self.width()*0.3])
     self.splitterV.setSizes([self.height()*0.7, self.height()*0.3])
     # add stream table window
-    self.streamTable = StreamTable(self)
+    self.streamTable = StreamTable(parent=self)
     # setup menu slots
     self.actionLoadCXI.triggered.connect(self.loadCXISlot)
     self.actionLoadGeom.triggered.connect(self.loadGeomSlot)
