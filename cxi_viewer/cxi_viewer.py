@@ -149,12 +149,31 @@ class StreamTable(QtGui.QDialog):
     for dataset in error.keys():
       if len(error[dataset] > 0):
         print('plot for %s' % dataset)
+        data = error[dataset]
+        valid_idx = np.max(data[:,1:], axis=1) < 0.5
+
         plt.figure(dataset)
-        data = error[dataset][:,1]
-        valid_data = data[data < 1] # remove large error
-        plt.hist(valid_data)
+        plt.subplot(131)
+        astar_err = data[valid_idx, 1]
+        plt.hist(astar_err)
         plt.title('Number: %d  Mean: %.2E' %
-          (valid_data.size, valid_data.mean()))
+          (astar_err.size, astar_err.mean()))
+        plt.xlabel('a star error')
+
+        plt.subplot(132)
+        bstar_err = data[valid_idx, 2]
+        plt.hist(bstar_err)
+        plt.title('Number: %d  Mean: %.2E' %
+          (bstar_err.size, bstar_err.mean()))
+        plt.xlabel('b star error')
+
+        plt.subplot(133)
+        cstar_err = data[valid_idx, 3]
+        plt.hist(cstar_err)
+        plt.title('Number: %d  Mean: %.2E' %
+          (cstar_err.size, cstar_err.mean()))
+        plt.xlabel('c star error')
+        plt.tight_layout()
         plt.show(block=False)
 
   def onClickedExportDataSlot(self):
@@ -164,7 +183,7 @@ class StreamTable(QtGui.QDialog):
         fname = '%s-error.txt' % dataset
         np.savetxt(fname, 
           error[dataset],
-          fmt='%5d %.5f')
+          fmt='%5d %.5f %.5f %.5f')
         print('%s error saved to %s' %
           (dataset, fname))
 
@@ -176,9 +195,13 @@ class StreamTable(QtGui.QDialog):
     for i in range(nb_row):
       dataset = str(self.table.item(i, 1).text())
       astar_text = str(self.table.item(i, 5).text())
+      bstar_text = str(self.table.item(i, 6).text())
+      cstar_text = str(self.table.item(i, 7).text())
       if '/' in astar_text:
         astar_err = float(astar_text.split('/')[-1][:-1]) / 100.  # relative error
-        error[dataset].append([i, astar_err])
+        bstar_err = float(bstar_text.split('/')[-1][:-1]) / 100.  
+        cstar_err = float(cstar_text.split('/')[-1][:-1]) / 100.  
+        error[dataset].append([i, astar_err, bstar_err, cstar_err])
     for i in [1, 2, 3]:
       error['test%d' % i] = np.asarray(
         error['test%d' % i])
