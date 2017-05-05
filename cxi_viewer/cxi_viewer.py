@@ -270,6 +270,7 @@ class StreamTable(QtGui.QDialog):
         makeTabelItem('--'))
 
   def updateTable(self, current_event_id):
+    self.table.setRowCount(0)  # clear all rows
     self.merge_streams()
     row_counter = 0
     print('scroll to %d' % current_event_id)
