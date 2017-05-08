@@ -119,7 +119,7 @@ def makeTabelItem(text):
   """Make table item with text centered"""
   item = QtGui.QTableWidgetItem(text)
   item.setTextAlignment(QtCore.Qt.AlignCenter)
-  item.setFlags(QtCore.Qt.ItemIsEditable)
+  # item.setFlags(QtCore.Qt.ItemIsEditable)
   return item
 
 
