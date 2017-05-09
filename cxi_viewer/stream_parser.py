@@ -158,7 +158,8 @@ class IndexStat(object):
         cell_param = CPs[:,i]
         param_avg = cell_param.mean()
         param_std = cell_param.std()
-        bins = np.arange(cell_param.mean() - padding, cell_param.mean() + padding, bin_size)
+        bins = np.arange(cell_param.mean() - padding, 
+          cell_param.mean() + padding, bin_size)
 
         ax = plt.subplot("23" + str(i+1))
         plt.hist(cell_param, bins)
@@ -169,7 +170,9 @@ class IndexStat(object):
 
 class Stream(object):
   """Stream parsing result"""
-  def __init__(self, fname, max_chunks=np.inf):
+  def __init__(self, fname, 
+               max_chunks=np.inf,
+               debug=False):
     """Summary
     
     Args:
@@ -177,6 +180,7 @@ class Stream(object):
     """
     self.fname = fname
     self.max_chunks = max_chunks
+    self.debug = debug
     self.index_stats = []
     self.chunks = []
     self.image_fnames = []
@@ -216,7 +220,7 @@ class Stream(object):
           event = int(eventL.split(":")[1][3:])
           chunk = Chunk(filename, event)
           count_chunk += 1
-          print("\r%.1f%% self.chunks has been processed" 
+          print("\r%.1f%% chunks have been processed" 
             %(float(count_chunk)/float(total_chunks)*100.)),
           self.image_fnames.append(os.path.basename(filename))  
 
@@ -311,8 +315,8 @@ class Stream(object):
                 self.chunks.append(chunk)
                 break
               else:
-                pass
-                # print("unprocessed line: %s" %newL)
+                if self.debug == True:
+                  print("unprocessed line: %s\n" %newL)
             else:
               break
       else:
