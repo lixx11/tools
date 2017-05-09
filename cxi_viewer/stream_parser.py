@@ -147,7 +147,7 @@ class IndexStat(object):
       # collect cell parameters
       CPs = []
       for x in xrange(self.indexed_num):
-        CP = self.chunks[x].crystal.cell_parameter.tolist()
+        CP = self.self.chunks[x].crystal.cell_parameter.tolist()
         CPs.append(CP)
       CPs = np.asarray(CPs)
       param_names = ['a', 'b', 'c',
@@ -167,6 +167,175 @@ class IndexStat(object):
       plt.show()
 
 
+class Stream(object):
+  """Stream parsing result"""
+  def __init__(self, fname, max_chunks=np.inf):
+    """Summary
+    
+    Args:
+        fname (TYPE): Stream filename.
+    """
+    self.fname = fname
+    self.max_chunks = max_chunks
+    self.index_stats = []
+    self.chunks = []
+    self.image_fnames = []
+    # parse stream
+    self.parse_stream()
+
+  def print_summary(self):
+    print("===========STREAM SUMMARY=============")
+    print("%16s: %d" %("Total Processed chunks", 
+      len(self.chunks)))
+    for i in range(len(self.index_stats)):
+      print("%-16s: %s" %("indexing method", 
+        self.index_stats[i].index_method))
+      indexed_num = self.index_stats[i].indexed_num
+      indexing_rate = float(indexed_num) / len(self.chunks)
+      print("%-16s: %.3f" % 
+        ("indexing rate", indexing_rate))
+    print("--------PROCESSED FILES--------")
+    self.image_fnames.sort()
+    for i in range(len(self.image_fnames)):
+      print(self.image_fnames[i])
+    print("============END SUMMARY===============")
+
+  def parse_stream(self):
+    total_chunks = get_chunk_num(self.fname)
+    stream_file = open(self.fname, 'r')
+    indexed_bys = []
+    count_chunk = 0
+    # parse stream file line by line
+    while count_chunk < self.max_chunks:
+      line = stream_file.readline()
+      if line:
+        if "Begin chunk" in line:
+          filenameL = stream_file.readline()
+          eventL = stream_file.readline()
+          filename = filenameL.split(":")[1][1:-1]
+          event = int(eventL.split(":")[1][3:])
+          chunk = Chunk(filename, event)
+          count_chunk += 1
+          print("\r%.1f%% self.chunks has been processed" 
+            %(float(count_chunk)/float(total_chunks)*100.)),
+          self.image_fnames.append(os.path.basename(filename))  
+
+          while True:
+            newL = stream_file.readline()
+            if newL:
+              if "indexed_by" in newL:
+                chunk.indexed_by = newL.split("=")[1][1:-1]
+                indexed_bys.append(chunk.indexed_by)
+              elif "photon_energy_eV" in newL:
+                chunk.photon_energy_eV = float(newL.split("=")[1])
+              elif "num_peaks" in newL:
+                chunk.num_peaks = int(newL.split("=")[1])
+              elif "Peaks from peak search" in newL:
+                fs_ss = []  # all fs, ss in this chunk
+                newL = stream_file.readline()
+                assert int(len(newL.split())) == 5 # fs/px, ss/px, 1/d, Intensity, Panel
+                while True:
+                  newL = stream_file.readline()
+                  if newL:
+                    if "End of peak list" in newL:
+                      break
+                    fs = float(newL[:7])
+                    ss = float(newL[7:15])
+                    fs_ss.append([fs, ss])
+                    reverse_d = float(newL[15:27])
+                    intensity = float(newL[27:41])
+                    panel = newL[41:-1]
+                    peak = Peak(fs, ss, reverse_d, intensity, panel)
+                    chunk.peaks.append(peak)
+                  else:
+                    break
+              elif "Begin crystal" in newL:
+                crystal = Crystal()
+                while True:
+                  newL = stream_file.readline()
+                  if newL:  
+                    if "Cell parameters" in newL:
+                      CP = newL.split(" ")
+                      if len(CP) == 6:
+                        a = float(CP[2]) * 10.
+                        b = float(CP[3]) * 10.
+                        c = float(CP[4]) * 10.
+                        al = float(CP[6])
+                        be = float(CP[7])
+                        ga = float(CP[8])
+                      else:  # abnormal cell parameters
+                        a, b, c = 0., 0., 0.
+                        al, be, ga = 0., 0., 0.
+                      cp = CellParameter(a, b, c, al, be, ga)
+                      crystal.cell_parameter = cp
+                    elif "astar" in newL:
+                      crystal.astar = parse_abcstar(newL.split("=")[1])
+                    elif "bstar" in newL:
+                      crystal.bstar = parse_abcstar(newL.split("=")[1])
+                    elif "cstar" in newL:
+                      crystal.cstar = parse_abcstar(newL.split("=")[1])
+                    elif "lattice_type" in newL:
+                      crystal.lattice_type = newL.split("=")[1][1:-1]
+                    elif "centering" in newL:
+                      crystal.centering = newL.split("=")[1][1:-1]
+                    elif "Reflections measured after indexing" in newL:
+                      newL = stream_file.readline()
+                      assert len(newL.split()) == 10   # h, k, l, I, sigma, peak, bg, fs, ss, panel
+                      fs_ss = np.asarray(fs_ss)
+                      while True:
+                        newL = stream_file.readline()
+                        if "End of reflections" in newL:
+                          break
+                        h = int(newL[:4])
+                        k = int(newL[4:9])
+                        l = int(newL[9:14])
+                        I = float(newL[14:25])
+                        sigma_I = float(newL[25:36])
+                        peak = float(newL[36:47])
+                        background = float(newL[47:58])
+                        fs = float(newL[58:65])
+                        ss = float(newL[65:72])
+                        panel = newL[72:-1]
+                        reflection = Reflection(h, k, l, I, sigma_I, 
+                          peak, background, fs, ss, panel)
+                        chunk.reflections.append(reflection)
+                        min_dist = np.sqrt((fs_ss[:,0]-fs)**2. + (fs_ss[:,1]-ss)**2.).min()
+                        if  min_dist < 2.:
+                          chunk.reflection_peaks.append(reflection)
+                    elif "End crystal" in newL:
+                      chunk.crystal = crystal
+                      break
+                  else:
+                    break
+              elif "End chunk" in newL:
+                self.chunks.append(chunk)
+                break
+              else:
+                pass
+                # print("unprocessed line: %s" %newL)
+            else:
+              break
+      else:
+        break
+    
+    indexed_bys = list(set(indexed_bys))
+    self.image_fnames = list(set(self.image_fnames))
+    chunks_num = len(self.chunks)
+    self.chunks.sort(key=lambda x: x.indexed_by, reverse=True)
+    # create index_stats
+    for i in range(len(indexed_bys)):
+      index_stat = IndexStat(indexed_bys[i])
+      self.index_stats.append(index_stat)
+    # add chunks to corresponding index_stat
+    for i in range(len(self.chunks)):
+      chunk = self.chunks[i]
+      for j in range(len(self.index_stats)):
+        self.index_stats[j].maybe_add_chunk(chunk)
+    # sort index_stats by the number of indexed patterns
+    self.index_stats.sort(key=lambda x: x.indexed_num, reverse=True)
+    
+
+# some helper functions
 def get_chunk_num(stream_file):
   nb_chunks = 0
   f = open(stream_file, 'r')
@@ -223,13 +392,13 @@ def to_spind_file(index_stats, filename, offset=0.0):
   match_rate = 0.
   nb_pairs = 0
   pair_dist = 0.
-  chunks = []
+  self.chunks = []
   for index_stat in index_stats:
-    chunks += index_stat.chunks
-  # sort chunks by event id
-  chunks.sort(key=lambda x: x.event)
+    self.chunks += index_stat.self.chunks
+  # sort self.chunks by event id
+  self.chunks.sort(key=lambda x: x.event)
   f = open(filename, 'w')
-  for c in chunks:
+  for c in self.chunks:
     if c.indexed_by == 'none':
       f.write('%6d %.2f %4d %.4E \
         %.4E %.4E %.4E %.4E %.4E %.4E %.4E %.4E %.4E\n'
@@ -254,162 +423,6 @@ def to_spind_file(index_stats, filename, offset=0.0):
           cstar[0], cstar[1], cstar[2]))
 
 
-def parse_stream(filepath, max_chunks=np.inf):
-  """Summary
-  
-  Args:
-    filepath (string): stream filepath
-    max_chunks (int, optional): max chunks to process
-  
-  Returns:
-    List of index_stats: Description
-  """
-  total_chunks = get_chunk_num(filepath)
-  stream_file = open(filepath)
-  chunks = []
-  indexed_bys = []
-  image_filenames = []
-  count_chunk = 0
-  while count_chunk < max_chunks:
-    line = stream_file.readline()
-    if line:
-      if "Begin chunk" in line:
-        filenameL = stream_file.readline()
-        eventL = stream_file.readline()
-        filename = filenameL.split(":")[1][1:-1]
-        event = int(eventL.split(":")[1][3:])
-        chunk = Chunk(filename, event)
-        count_chunk += 1
-        print("\r%.1f%% chunks has been processed" 
-          %(float(count_chunk)/float(total_chunks)*100.)),
-        image_filenames.append(os.path.basename(filename))
-
-        while True:
-          newL = stream_file.readline()
-          if newL:
-            if "indexed_by" in newL:
-              chunk.indexed_by = newL.split("=")[1][1:-1]
-              indexed_bys.append(chunk.indexed_by)
-            elif "photon_energy_eV" in newL:
-              chunk.photon_energy_eV = float(newL.split("=")[1])
-            elif "num_peaks" in newL:
-              chunk.num_peaks = int(newL.split("=")[1])
-            elif "Peaks from peak search" in newL:
-              fs_ss = []  # all fs, ss in this chunk
-              newL = stream_file.readline()
-              assert int(len(newL.split())) == 5 # fs/px, ss/px, 1/d, Intensity, Panel
-              while True:
-                newL = stream_file.readline()
-                if newL:
-                  if "End of peak list" in newL:
-                    break
-                  fs = float(newL[:7])
-                  ss = float(newL[7:15])
-                  fs_ss.append([fs, ss])
-                  reverse_d = float(newL[15:27])
-                  intensity = float(newL[27:41])
-                  panel = newL[41:-1]
-                  peak = Peak(fs, ss, reverse_d, intensity, panel)
-                  chunk.peaks.append(peak)
-                else:
-                  break
-            elif "Begin crystal" in newL:
-              crystal = Crystal()
-              while True:
-                newL = stream_file.readline()
-                if newL:  
-                  if "Cell parameters" in newL:
-                    CP = newL.split(" ")
-                    if len(CP) == 6:
-                      a = float(CP[2]) * 10.
-                      b = float(CP[3]) * 10.
-                      c = float(CP[4]) * 10.
-                      al = float(CP[6])
-                      be = float(CP[7])
-                      ga = float(CP[8])
-                    else:  # abnormal cell parameters
-                      a, b, c = 0., 0., 0.
-                      al, be, ga = 0., 0., 0.
-                    cp = CellParameter(a, b, c, al, be, ga)
-                    crystal.cell_parameter = cp
-                  elif "astar" in newL:
-                    crystal.astar = parse_abcstar(newL.split("=")[1])
-                  elif "bstar" in newL:
-                    crystal.bstar = parse_abcstar(newL.split("=")[1])
-                  elif "cstar" in newL:
-                    crystal.cstar = parse_abcstar(newL.split("=")[1])
-                  elif "lattice_type" in newL:
-                    crystal.lattice_type = newL.split("=")[1][1:-1]
-                  elif "centering" in newL:
-                    crystal.centering = newL.split("=")[1][1:-1]
-                  elif "Reflections measured after indexing" in newL:
-                    newL = stream_file.readline()
-                    assert len(newL.split()) == 10   # h, k, l, I, sigma, peak, bg, fs, ss, panel
-                    fs_ss = np.asarray(fs_ss)
-                    while True:
-                      newL = stream_file.readline()
-                      if "End of reflections" in newL:
-                        break
-                      h = int(newL[:4])
-                      k = int(newL[4:9])
-                      l = int(newL[9:14])
-                      I = float(newL[14:25])
-                      sigma_I = float(newL[25:36])
-                      peak = float(newL[36:47])
-                      background = float(newL[47:58])
-                      fs = float(newL[58:65])
-                      ss = float(newL[65:72])
-                      panel = newL[72:-1]
-                      reflection = Reflection(h, k, l, I, sigma_I, 
-                        peak, background, fs, ss, panel)
-                      chunk.reflections.append(reflection)
-                      min_dist = np.sqrt((fs_ss[:,0]-fs)**2. + (fs_ss[:,1]-ss)**2.).min()
-                      if  min_dist < 2.:
-                        chunk.reflection_peaks.append(reflection)
-                  elif "End crystal" in newL:
-                    chunk.crystal = crystal
-                    break
-                else:
-                  break
-            elif "End chunk" in newL:
-              chunks.append(chunk)
-              break
-            else:
-              pass
-              # print("unprocessed line: %s" %newL)
-          else:
-            break
-    else:
-      break
-  index_stats = []
-  indexed_bys = list(set(indexed_bys))
-  image_filenames = list(set(image_filenames))
-  chunks_num = len(chunks)
-  chunks.sort(key=lambda x: x.indexed_by, reverse=True)
-  for i in range(len(indexed_bys)):
-    index_stat = IndexStat(indexed_bys[i])
-    index_stats.append(index_stat)
-    # print("%s index_stat created." %indexed_bys[i])
-  for i in range(len(chunks)):
-    chunk = chunks[i]
-    for j in range(len(index_stats)):
-      index_stats[j].maybe_add_chunk(chunk)
-  index_stats.sort(key=lambda x: x.indexed_num, reverse=True)
-  print("\n")
-  print("===========STREAM SUMMARY=============")
-  print("%16s: %d" %("Total Processed Chunks", chunks_num))
-  for i in xrange(len(index_stats)):
-    print("%-16s: %s" %("indexing method", index_stats[i].index_method))
-    indexing_rate = float(index_stats[i].indexed_num) / chunks_num
-    print("%-16s: %.3f" %("indexing rate", indexing_rate))
-  print("--------PROCESSED FILES--------")
-  image_filenames.sort()
-  for i in xrange(len(image_filenames)):
-    print(image_filenames[i])
-  print("============END SUMMARY===============")
-  return index_stats
-
-
 if __name__ == '__main__':
   argv = docopt(__doc__)
   stream_file = argv['<stream_file>']
@@ -419,4 +432,6 @@ if __name__ == '__main__':
   else:
     max_chunks = int(max_chunks)
 
-  index_stats = parse_stream(stream_file, max_chunks=max_chunks)
+  stream = Stream(stream_file, max_chunks=max_chunks)
+  print('\n')
+  stream.print_summary()
