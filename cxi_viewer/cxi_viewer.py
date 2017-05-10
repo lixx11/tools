@@ -12,7 +12,7 @@ import h5py
 import numpy as np
 from numpy.linalg import norm
 from stream_parser import Stream
-from geometry import Geometry
+from geometry import Geometry, det2fourier, get_hkl
 
 
 # pens for plot items, visit 
@@ -32,11 +32,12 @@ sizes = {'peak': 3,
     'test3': 11}
 
 def load_data_from_stream(filename):
-  """load reflection information from stream file"""
+  """load information from stream file"""
   chunks = []
   data = {}
   stream = Stream(filename)
   index_stats = stream.index_stats
+  # collect indexed chunks
   for index_stat in index_stats:
     if index_stat.index_method != 'none':
       chunks += index_stat.chunks
@@ -45,6 +46,11 @@ def load_data_from_stream(filename):
     astar = c.crystal.astar
     bstar = c.crystal.bstar
     cstar = c.crystal.cstar
+    # peaks
+    peakXYs = []
+    for p in c.peaks:
+      peakXYs.append([p.fs, p.ss])
+    peakXYs = np.asarray(peakXYs)
     # collect reflections
     rawXYs = []
     HKLs = []
@@ -59,6 +65,7 @@ def load_data_from_stream(filename):
     data[c.event] = {'rawXYs': rawXYs, 
              'HKLs': HKLs, 
              'Is': Is,
+             'peakXYs': peakXYs,
              'astar': astar,
              'bstar': bstar,
              'cstar': cstar}
@@ -79,11 +86,57 @@ class StreamTable(QtGui.QDialog):
     dir_ = os.path.dirname(os.path.abspath(__file__))
     uic.loadUi(dir_ + '/' + 'table.ui', self)
     # add slot for buttons
-    self.plotHistButton.clicked.connect(self.onClickedPlotHistSlot)
-    self.exportDataButton.clicked.connect(self.onClickedExportDataSlot)
+    self.plotHistButton.clicked.connect(
+      self.onClickedPlotHistSlot)
+    self.exportDataButton.clicked.connect(
+      self.onClickedExportDataSlot)
+    self.centeringAnaButton.clicked.connect(
+      self.onClickCenteringAnaSlot)
     # add slot for table
-    self.table.cellClicked.connect(self.onCellClickedSlot)
+    self.table.cellClicked.connect(
+      self.onCellClickedSlot)
     self.streams = {}
+
+  def onClickCenteringAnaSlot(self):
+    import matplotlib.pyplot as plt 
+    plt.style.use('ggplot')
+
+    nb_row = self.table.rowCount()
+    nb_paired_peaks = 0
+    nb_I_peaks = 0
+    nb_C_peaks = 0
+    nb_A_peaks = 0
+    nb_B_peaks = 0
+    for i in range(nb_row):
+      dataset = str(self.table.item(i, 1).text())
+      if dataset == 'ref':  # only collect from reference
+        nb_paired_peaks += int(self.table.item(i, 10).text())
+        nb_I_peaks += int(self.table.item(i, 11).text())
+        nb_C_peaks += int(self.table.item(i, 12).text())
+        nb_A_peaks += int(self.table.item(i, 13).text())
+        nb_B_peaks += int(self.table.item(i, 14).text())
+
+    I_peak_ratio = float(nb_I_peaks) / float(nb_paired_peaks)
+    C_peak_ratio = float(nb_C_peaks) / float(nb_paired_peaks)
+    A_peak_ratio = float(nb_A_peaks) / float(nb_paired_peaks)
+    B_peak_ratio = float(nb_B_peaks) / float(nb_paired_peaks)
+
+    # make plot
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    xs = np.arange(4)
+    ys = [I_peak_ratio, C_peak_ratio, A_peak_ratio, B_peak_ratio]
+    ticks = ['I type', 'C type', 'A type', 'B type']
+    plt.bar(xs, ys)
+    plt.xticks(xs+0.5, ticks)
+    plt.ylim((0., 1))
+    for i in range(len(ax.patches)):
+      patch = ax.patches[i]
+      height = patch.get_height()
+      ax.text(patch.get_x() + patch.get_width()/2, 
+          height + 0.04, '%.2f' % (ys[i]), 
+          ha='center', va='bottom')
+    plt.show(block=False)
 
   def onCellClickedSlot(self, row, column):
     item = self.table.item(row, 0)
@@ -157,15 +210,16 @@ class StreamTable(QtGui.QDialog):
         error['test%d' % i])
     return error
     
-
   def merge_streams(self):
+    """
+    Merge multiple streams and organize as a list
+    """
     event_ids = []
     for name, stream in self.streams.items():
       event_ids += stream['data'].keys()
     event_ids = list(set(event_ids))  # remove duplicates
     event_ids.sort()
 
-    # merge streams into single list
     self.merged_stream = []
     for i in range(len(event_ids)):
       event_id = event_ids[i]
@@ -189,6 +243,30 @@ class StreamTable(QtGui.QDialog):
       self.merged_stream.append((event_id, event_data))
 
   def fillTableRow(self, row, event_id, label, data):
+    """fill stream table with given event data and organize
+    * event [event id]
+    * stream label [ref or testx]
+    * a, b, c star 
+    * a, b, c star error
+    * # of reflections
+    * # of peaks
+    * # of paired peaks [hkl error < 0.25]
+    * # of I-type peaks [h+k+l=2n]
+    * # of C-type peaks [h+k=2n]
+    * # of A-type peaks [k+l=2n]
+    * # of B-type peaks [h+l=2n]
+    
+    Parameters
+    ----------
+    row : TYPE
+        Description
+    event_id : TYPE
+        Description
+    label : TYPE
+        Description
+    data : TYPE
+        Description
+    """
     self.table.insertRow(row)
     astar = data[label]['astar'] / 1E6  # in um
     bstar = data[label]['bstar'] / 1E6 
@@ -241,6 +319,51 @@ class StreamTable(QtGui.QDialog):
     else:
       self.table.setItem(row, 7,
         makeTabelItem('--'))
+    # num of reflections
+    self.table.setItem(row, 8, 
+      makeTabelItem('%d' % len(data[label]['rawXYs'])))
+    # num of peaks
+    peakXYs = data[label]['peakXYs']
+    self.table.setItem(row, 9, 
+      makeTabelItem('%d' % len(peakXYs)))
+    # num of paired peaks
+    geom = self.parent().geom 
+    assXYs = geom.batch_map_in_m(peakXYs)
+    # todo: improve this hard code
+    det_dist = 136.4028E-3  # detector distance in meters
+    wavelength = 1.306098E-10  # XFEL wavelength in meters
+    qs = det2fourier(assXYs, wavelength, det_dist)
+    A = np.ones((3,3))
+    A[:,0] = astar * 1E6 
+    A[:,1] = bstar * 1E6 
+    A[:,2] = cstar * 1E6 
+    HKL = get_hkl(qs, A=A)  # decimal hkls
+    rHKL = np.int_(np.round(HKL)) # integer hkls
+    eHKL = np.abs(HKL - rHKL)  # hkl error
+    pair_idx = np.max(eHKL, axis=1) < 0.25
+    nb_paired_peaks = pair_idx.sum()
+    self.table.setItem(row, 10, 
+      makeTabelItem('%d' % nb_paired_peaks))
+    # num of X-type peaks
+    pair_h = rHKL[pair_idx,0]
+    pair_k = rHKL[pair_idx,1]
+    pair_l = rHKL[pair_idx,2]
+    # I-type peaks
+    nb_I_peaks = np.sum((pair_h + pair_k + pair_l) % 2 == 0)
+    self.table.setItem(row, 11, 
+      makeTabelItem('%d' % nb_I_peaks))
+    # C-type peaks
+    nb_C_peaks = np.sum((pair_h + pair_k) % 2 == 0)
+    self.table.setItem(row, 12, 
+      makeTabelItem('%d' % nb_C_peaks))
+    # A-type peaks
+    nb_A_peaks = np.sum((pair_k + pair_l) % 2 == 0)
+    self.table.setItem(row, 13, 
+      makeTabelItem('%d' % nb_A_peaks))
+    # B-type peaks
+    nb_B_peaks = np.sum((pair_h + pair_l) % 2 == 0)
+    self.table.setItem(row, 14, 
+      makeTabelItem('%d' % nb_B_peaks))
 
   def updateTable(self, current_event_id):
     self.table.setRowCount(0)  # clear all rows
@@ -421,7 +544,6 @@ class CXIWindow(QtGui.QMainWindow):
     if fpath == '':
       return
     import yaml
-    # try:
     yml_file = file(fpath, 'r')
     state = yaml.safe_load(yml_file)
     yml_file.close()
@@ -429,8 +551,6 @@ class CXIWindow(QtGui.QMainWindow):
     self.maybeLoadGeom(state['geom_file'])
     self.maybeLoadRefStream(state['ref_stream_file']) 
     self.maybeLoadTestStream(state['test_stream_files'])
-    # except:
-    #   print('Invalid state file: %s' % fpath)
 
   def saveStateSlot(self):
     """Save configuration to state file"""

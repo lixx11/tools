@@ -47,6 +47,13 @@
         </widget>
        </item>
        <item>
+        <widget class="QPushButton" name="centeringAnaButton">
+         <property name="text">
+          <string>Centering Type Analysis</string>
+         </property>
+        </widget>
+       </item>
+       <item>
         <widget class="QPushButton" name="pushButton">
          <property name="enabled">
           <bool>true</bool>
@@ -138,6 +145,41 @@
        <column>
         <property name="text">
          <string>c_star_err</string>
+        </property>
+       </column>
+       <column>
+        <property name="text">
+         <string>reflections</string>
+        </property>
+       </column>
+       <column>
+        <property name="text">
+         <string>peaks</string>
+        </property>
+       </column>
+       <column>
+        <property name="text">
+         <string>paired peaks</string>
+        </property>
+       </column>
+       <column>
+        <property name="text">
+         <string>I-type peaks</string>
+        </property>
+       </column>
+       <column>
+        <property name="text">
+         <string>C-type peaks</string>
+        </property>
+       </column>
+       <column>
+        <property name="text">
+         <string>A-type peaks</string>
+        </property>
+       </column>
+       <column>
+        <property name="text">
+         <string>B-type peaks</string>
         </property>
        </column>
       </widget>
