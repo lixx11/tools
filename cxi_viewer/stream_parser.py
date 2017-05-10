@@ -6,8 +6,8 @@ Usage:
   stream_parser.py <stream_file> [--max-chunks=<mc>]
 
 Options:
-  -h --help     Show this screen.
-  --max-chunks=<mc>  Max chunks to process [default: inf].
+  -h --help           Show this screen.
+  --max-chunks=<mc>   Max chunks to process [default: inf].
 """
 
 import numpy as np 
@@ -163,7 +163,8 @@ class IndexStat(object):
 
         ax = plt.subplot("23" + str(i+1))
         plt.hist(cell_param, bins)
-        title = "%s -- %.2f, %.2f" %(param_names[i], param_avg, param_std)
+        title = "%s -- %.2f, %.2f" %(param_names[i], 
+          param_avg, param_std)
         plt.title(title)
       plt.show()
 

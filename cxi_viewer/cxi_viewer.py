@@ -11,7 +11,7 @@ from pyqtgraph.parametertree import ParameterTree, Parameter
 import h5py
 import numpy as np
 from numpy.linalg import norm
-from stream_parser import parse_stream
+from stream_parser import Stream
 
 
 # pens for plot items, visit 
@@ -34,17 +34,20 @@ def load_data_from_stream(filename):
   """load reflection information from stream file"""
   chunks = []
   data = {}
-  index_stats = parse_stream(filename)
+  stream = Stream(filename)
+  index_stats = stream.index_stats
   for index_stat in index_stats:
     if index_stat.index_method != 'none':
       chunks += index_stat.chunks
   for c in chunks:
-    rawXYs = []
-    HKLs = []
-    Is = []
+    # a, b, c star
     astar = c.crystal.astar
     bstar = c.crystal.bstar
     cstar = c.crystal.cstar
+    # collect reflections
+    rawXYs = []
+    HKLs = []
+    Is = []
     for r in c.reflections:
       rawXYs.append([r.fs, r.ss])
       HKLs.append([r.h, r.k, r.l])
