@@ -13,6 +13,8 @@ Options:
     -o output_dir                                   Output directory [default: output].
     --sort-by=<metric>                              Sort peaks by certain metric [default: SNR].
     --res=<resolution>                              Resolution threshold for high priority peaks in angstrom [default: 4.5].
+    --output-format=output_format                   Ourput format, multiple plain txt files or single hdf5 files [default: h5].
+    --scale                                         Special option for cxij6916 for filtered region scaling.
 """
 
 from docopt import docopt
@@ -20,7 +22,7 @@ import os
 import h5py
 from tqdm import tqdm  # show a progress bar for loops
 import numpy as np
-from math import sin, atan, sqrt
+from math import sin, atan, sqrt, exp, cos
 import glob
 
 
@@ -78,7 +80,9 @@ def load_geom(filename):
         return None
 
 
-def extract_peaks(cxi_file, output_dir, sort_by='SNR', res_threshold=4.5E-10):
+def extract_peaks(cxi_file, output_dir, sort_by='SNR', 
+                  res_threshold=4.5E-10, scale=False,
+                  output_format='h5'):
     data = h5py.File(cxi_file,'r')
     basename, ext = os.path.splitext(os.path.basename(cxi_file))
 
@@ -87,9 +91,15 @@ def extract_peaks(cxi_file, output_dir, sort_by='SNR', res_threshold=4.5E-10):
         os.makedirs('%s' % output_dir)
 
     nb_events = data['entry_1/data_1/data'].shape[0]
+    
     print('Processing %s with geometry %s' % (cxi_file, geom_file))
+    peak_lists = []
+    dataset_names = []
     for event_id in tqdm(range(nb_events)):
-        output = output_dir + '/' + basename + '-e%04d.txt' % event_id
+        if output_format == 'txt':
+            output = output_dir + '/' + basename + '-e%04d.txt' % event_id
+        elif output_format == 'h5':
+            dataset_names.append(basename + '-e%04d' % event_id)
         nb_peaks = np.nonzero(data['entry_1/result_1/peakTotalIntensity'][event_id][:])[0].size
         peak_list = []
         for peak_id in range(nb_peaks):
@@ -108,6 +118,12 @@ def extract_peaks(cxi_file, output_dir, sort_by='SNR', res_threshold=4.5E-10):
             c = 2.99792458E8  # light speed in meters per sec
             lam = h * c / photon_energy
             res = lam / (sin(0.5 * atan(r * pixel_size / det_dist)) * 2)
+            if scale:
+                zn_thickness = 50E-6
+                absorption_length = 41.73E-6
+                theta = atan(r * pixel_size / det_dist)  # scattering angle
+                scaling = exp(zn_thickness / absorption_length / cos(theta))
+                total_intensity *= scaling
             peak = Peak(assX, assY, res, SNR, total_intensity, encoder_value, photon_energy)
             peak_list.append(peak)
 
@@ -116,7 +132,7 @@ def extract_peaks(cxi_file, output_dir, sort_by='SNR', res_threshold=4.5E-10):
         elif sort_by == 'total_intensity':
             peak_list.sort(key=lambda peak: peak.total_intensity, reverse=True)
         elif sort_by == 'res':
-            peak_list.sort(key=lambda peak: peak.total_intensity, reverse=False)
+            peak_list.sort(key=lambda peak: peak.res, reverse=False)
         else:
             print('Unimplemented sort strategy: %s' % sort_by)
             return None
@@ -135,11 +151,28 @@ def extract_peaks(cxi_file, output_dir, sort_by='SNR', res_threshold=4.5E-10):
             new_peak_list.append(peak_list[peak_id])
         for peak_id in LP_ids:
             new_peak_list.append(peak_list[peak_id])
+        peak_lists.append(new_peak_list)
+
         # write to file
-        f = open(output, 'w')
-        for peak in (new_peak_list):
-            f.write('%.5e %.5e %.5e %.5e %.5e %.5e\n' % 
-                    (peak.x, peak.y, peak.total_intensity, peak.SNR, peak.photon_energy, peak.encoder_value))
+        if output_format == 'txt':
+            f = open(output, 'w')
+            for peak in new_peak_list:
+                f.write('%.5e %.5e %.5e %.5e %.5e %.5e %5.2e\n' % 
+                        (peak.x, peak.y, peak.total_intensity, 
+                         peak.SNR, peak.photon_energy, peak.encoder_value,
+                         peak.res))
+    if output_format == 'h5':
+        output = output_dir + '/' + basename + '.h5'
+        f = h5py.File(output)
+        for i, peak_list in enumerate(peak_lists):
+            peak_array = []
+            for peak in peak_list:
+                peak_array.append([peak.x, peak.y, peak.total_intensity, 
+                         peak.SNR, peak.photon_energy, peak.encoder_value,
+                         peak.res])
+            f.create_dataset(dataset_names[i], data=np.asarray(peak_array))
+        f.close()
+
 
 
 if __name__ == '__main__':
@@ -151,15 +184,18 @@ if __name__ == '__main__':
     output_dir = argv['-o']
     det_dist = float(argv['-d'])
     pixel_size = float(argv['-p'])
+    output_format = argv['--output-format']
+    scale = argv['--scale']
     # load geometry
     geom_x, geom_y, geom_z = load_geom(geom_file)
 
     # load cxi file
     if os.path.isdir(cxi_file_or_dir):  # extract peaks from multiple cxi files
         cxi_files = glob.glob(cxi_file_or_dir + '/' + '*.cxi')
-        for cxi_file in cxi_files:
-            experiment, run_id, class_id = parse_peak_list_filename(cxi_file)
-            extract_peaks(cxi_file, output_dir+'/'+class_id, sort_by=sort_by, res_threshold=res_threshold)
     else:  # extract peaks from single cxi file
-        cxi_file = cxi_file_or_dir
-        extract_peaks(cxi_file_or_dir, output_dir+'/'+'c00', sort_by=sort_by, res_threshold=res_threshold)
+        cxi_files = [cxi_file_or_dir, ]
+    for cxi_file in cxi_files:
+        experiment, run_id, class_id = parse_peak_list_filename(cxi_file)
+        extract_peaks(cxi_file, output_dir+'/'+class_id, 
+            sort_by=sort_by, res_threshold=res_threshold, 
+            scale=scale, output_format=output_format)
