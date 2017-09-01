@@ -32,6 +32,9 @@ sizes = {'peak': 9,
     'test2': 9,
     'test3': 11}
 
+h_ = 4.135667662E-15  # Planck constant in eV*s
+c_ = 2.99792458E8  # light speed in m/sec
+
 def load_data_from_stream(filename):
   """load information from stream file"""
   chunks = []
@@ -426,7 +429,6 @@ class CXIWindow(QtGui.QMainWindow):
     self.frame = 0
     self.pixel_size = 110E-6  # 110um pixel of CSPAD
     self.det_dist = 0.
-    self.wavelength = 0.
     self.cxi_file = None
     self.geom_file = None
     self.ref_stream_file = None
@@ -466,7 +468,6 @@ class CXIWindow(QtGui.QMainWindow):
             ]},
             {'name': 'EXP INFO', 'type': 'group', 'children': [
               {'name': 'det dist', 'type': 'float', 'siPrefix': True, 'suffix': 'mm'},
-              {'name': 'wavelength', 'type': 'float', 'siPrefix': True, 'suffix': u'Å'},
             ]},
             {'name': 'Basic Operation', 'type': 'group', 'children': [
               {'name': 'Frame', 'type': 'int', 'value': self.frame},
@@ -489,8 +490,6 @@ class CXIWindow(QtGui.QMainWindow):
     # parameter connection
     self.params.param('EXP INFO', 
       'det dist').sigValueChanged.connect(self.detDistChangedSlot)
-    self.params.param('EXP INFO', 
-      'wavelength').sigValueChanged.connect(self.wavelengthChangedSlot)
     self.params.param('Basic Operation', 
       'Frame').sigValueChanged.connect(self.frameChangedSlot)
     self.params.param('Display Option', 
@@ -536,9 +535,6 @@ class CXIWindow(QtGui.QMainWindow):
 
   def detDistChangedSlot(self, _, dist):
     self.det_dist = float(dist) * 1.E-3  # convert to meter
-
-  def wavelengthChangedSlot(self, _, wavelength):
-    self.wavelength = float(wavelength) * 1.E-10  # convert to meter
 
   def showRefSlot(self, _, show):
     self.showReflection['ref_stream'] = show
@@ -649,6 +645,7 @@ class CXIWindow(QtGui.QMainWindow):
     self.cxi_file = fpath
     cxi = h5py.File(self.cxi_file, 'r')
     self.data = cxi['/entry_1/data_1/data']
+    self.wavelength = h_ * c_ / cxi['/LCLS/photon_energy_eV'].value
     self.nb_pattern = self.data.shape[0]
     try:
       self.peaks_x = cxi['/entry_1/result_1/peakXPosRaw']
@@ -778,7 +775,7 @@ class CXIWindow(QtGui.QMainWindow):
     if self.showHKL:
       peakXYs = np.array([peaks_x, peaks_y]).T
       assXYs = self.geom.batch_map_from_ass_in_m(peakXYs)
-      qs = det2fourier(assXYs, self.wavelength, self.det_dist)
+      qs = det2fourier(assXYs, self.wavelength[self.frame], self.det_dist)
       if self.ref_stream_file is not None:
         if self.frame in self.ref_stream_data.keys():
           event_data = self.ref_stream_data[self.frame]
