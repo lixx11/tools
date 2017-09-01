@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# coding=utf-8
 
 import sys
 import os
@@ -25,8 +26,8 @@ pens = {'peak': '#ff0000',
     'test3': '#ddff00'}
 
 # sizes for reflection plot
-sizes = {'peak': 3,
-    'ref': 5,
+sizes = {'peak': 9,
+    'ref': 15,
     'test1': 7,
     'test2': 9,
     'test3': 11}
@@ -328,10 +329,9 @@ class StreamTable(QtGui.QDialog):
       makeTabelItem('%d' % len(peakXYs)))
     # num of paired peaks
     geom = self.parent().geom 
-    assXYs = geom.batch_map_in_m(peakXYs)
-    # todo: improve this hard code
-    det_dist = 136.4028E-3  # detector distance in meters
-    wavelength = 1.306098E-10  # XFEL wavelength in meters
+    assXYs = geom.batch_map_from_raw_in_m(peakXYs)
+    det_dist = self.parent().det_dist  # detector distance in meters
+    wavelength = self.parent().wavelength  # XFEL wavelength in meters
     qs = det2fourier(assXYs, wavelength, det_dist)
     A = np.ones((3,3))
     A[:,0] = astar * 1E6 
@@ -425,12 +425,16 @@ class CXIWindow(QtGui.QMainWindow):
     # initialize parameters
     self.frame = 0
     self.pixel_size = 110E-6  # 110um pixel of CSPAD
+    self.det_dist = 0.
+    self.wavelength = 0.
     self.cxi_file = None
     self.geom_file = None
     self.ref_stream_file = None
+    self.showHKL = False
     self.test_stream_files = []
     self.peak_items = []
     self.reflection_items = []
+    self.hkl_items = []
     self.streams = {}  # all stream files and data
 
     # stream plot
@@ -460,6 +464,10 @@ class CXIWindow(QtGui.QMainWindow):
               {'name': 'Test Stream 2', 'type': 'str', 'value': 'not set', 'readonly': True},
               {'name': 'Test Stream 3', 'type': 'str', 'value': 'not set', 'readonly': True},
             ]},
+            {'name': 'EXP INFO', 'type': 'group', 'children': [
+              {'name': 'det dist', 'type': 'float', 'siPrefix': True, 'suffix': 'mm'},
+              {'name': 'wavelength', 'type': 'float', 'siPrefix': True, 'suffix': u'Å'},
+            ]},
             {'name': 'Basic Operation', 'type': 'group', 'children': [
               {'name': 'Frame', 'type': 'int', 'value': self.frame},
             ]},
@@ -470,6 +478,7 @@ class CXIWindow(QtGui.QMainWindow):
                 {'name': 'Test Stream 2', 'type': 'bool', 'value': self.showReflection['test_stream2']},
                 {'name': 'Test Stream 3', 'type': 'bool', 'value': self.showReflection['test_stream3']},
               ]},
+              {'name': 'Show HKL', 'type': 'bool', 'value': self.showHKL},
               {'name': 'AutoRange', 'type': 'bool', 'value': self.dispOption['autoRange']},
               {'name': 'AutoLevel', 'type': 'bool', 'value': self.dispOption['autoLevels']},
               {'name': 'AutoHistogram', 'type': 'bool', 'value': self.dispOption['autoHistogramRange']},
@@ -478,6 +487,10 @@ class CXIWindow(QtGui.QMainWindow):
     self.params = Parameter.create(name='params', type='group', children=params_list)
     self.parameterTree.setParameters(self.params, showTop=False)
     # parameter connection
+    self.params.param('EXP INFO', 
+      'det dist').sigValueChanged.connect(self.detDistChangedSlot)
+    self.params.param('EXP INFO', 
+      'wavelength').sigValueChanged.connect(self.wavelengthChangedSlot)
     self.params.param('Basic Operation', 
       'Frame').sigValueChanged.connect(self.frameChangedSlot)
     self.params.param('Display Option', 
@@ -492,6 +505,8 @@ class CXIWindow(QtGui.QMainWindow):
     self.params.param('Display Option', 
       'Show Reflections from', 
       'Test Stream 3').sigValueChanged.connect(self.showTest3Slot)
+    self.params.param('Display Option', 
+      'Show HKL').sigValueChanged.connect(self.showHKLSlot)
     # mouse move connection
     self.imageView.scene.sigMouseMoved.connect(self.mouseMoved)
     # load state if given
@@ -503,9 +518,27 @@ class CXIWindow(QtGui.QMainWindow):
     mouse_pos = self.imageView.view.mapToView(pos)
     image = self.imageView.image
     x, y = int(mouse_pos.x()), int(mouse_pos.y())
+    
+    message = ''
     if 0 <= x < image.shape[0] and 0 <= y < image.shape[1]:
-      self.statusbar.showMessage("x:%d y:%d I:%.2E" % 
-        (x, y, image[x, y]), 5000)
+      message += "x:%d y:%d I:%.2E" % \
+        (x, y, image[x, y])
+    if self.geom_file is not None:
+      geom = self.geom
+      centered_x = x - geom.offset_x
+      centered_y = y - geom.offset_y
+      message += ' centered x: %d, centered y: %d' % (centered_x, centered_y)
+    self.statusbar.showMessage(message, 5000)
+
+  def showHKLSlot(self, _, showHKL):
+    self.showHKL = showHKL
+    self.updateDisp()
+
+  def detDistChangedSlot(self, _, dist):
+    self.det_dist = float(dist) * 1.E-3  # convert to meter
+
+  def wavelengthChangedSlot(self, _, wavelength):
+    self.wavelength = float(wavelength) * 1.E-10  # convert to meter
 
   def showRefSlot(self, _, show):
     self.showReflection['ref_stream'] = show
@@ -617,8 +650,13 @@ class CXIWindow(QtGui.QMainWindow):
     cxi = h5py.File(self.cxi_file, 'r')
     self.data = cxi['/entry_1/instrument_1/detector_1/detector_corrected/data']
     self.nb_pattern = self.data.shape[0]
-    self.peaks_x = cxi['/entry_1/result_1/peakXPosRaw']
-    self.peaks_y = cxi['/entry_1/result_1/peakYPosRaw']
+    try:
+      self.peaks_x = cxi['/entry_1/result_1/peakXPosRaw']
+      self.peaks_y = cxi['/entry_1/result_1/peakYPosRaw']
+      self.n_peaks = cxi['/entry_1/result_1/nPeaks']
+    except:
+      self.peaks_x = []
+      self.peaks_y = []
     self.params.param('File Info', 'CXI File').setValue(basename(self.cxi_file))
     self.params.param('File Info', 'Pattern Number').setValue(self.nb_pattern)
     self.updateDisp()
@@ -706,6 +744,8 @@ class CXIWindow(QtGui.QMainWindow):
       self.imageView.getView().removeItem(item)
     for item in self.reflection_items:
       self.imageView.getView().removeItem(item)
+    for item in self.hkl_items:
+        self.imageView.getView().removeItem(item)
     if self.cxi_file is None:
       return
     image = self.data[self.frame]
@@ -717,25 +757,44 @@ class CXIWindow(QtGui.QMainWindow):
       autoLevels=self.dispOption['autoLevels'],
       autoHistogramRange=self.dispOption['autoHistogramRange'])
     # render peaks extracted from cxi file
-    n_peaks = 0
+    n_peaks = self.n_peaks[self.frame]
     peaks_x, peaks_y = [], []
-    for i in range(len(self.peaks_x[self.frame])):
+    for i in range(n_peaks):  # convert to pixel map
       peak_x = int(round(self.peaks_x[self.frame][i]))
       peak_y = int(round(self.peaks_y[self.frame][i]))
-      if peak_x == 0.0 and peak_y == 0.0:
-        break
+      if self.geom_file is not None:
+        peak_x, peak_y = self.geom.map((peak_x, peak_y))
       else:
-        if self.geom_file is not None:
-          peak_x, peak_y = self.geom.map((peak_x, peak_y))
-        else:
-          peak_x, peak_y = peak_y, peak_x
-        peaks_x.append(peak_x)
-        peaks_y.append(peak_y)
-        n_peaks += 1
+        peak_x, peak_y = peak_y, peak_x
+      peaks_x.append(peak_x)
+      peaks_y.append(peak_y)
     p = pg.ScatterPlotItem()
+    self.peak_items.append(p)
     self.imageView.getView().addItem(p)
     p.setData(peaks_x, peaks_y, symbol='x', 
-      size=6, brush=(255,255,255,0), pen=pens['peak'])
+      size=sizes['peak'], brush=(255,255,255,0), pen=pens['peak'])
+
+    # plot hkl for observed peaks
+    if self.showHKL:
+      peakXYs = np.array([peaks_x, peaks_y]).T
+      assXYs = self.geom.batch_map_from_ass_in_m(peakXYs)
+      qs = det2fourier(assXYs, self.wavelength, self.det_dist)
+      if self.ref_stream_file is not None:
+        if self.frame in self.ref_stream_data.keys():
+          event_data = self.ref_stream_data[self.frame]
+          A = np.ones((3,3))
+          A[:,0] = event_data['astar']
+          A[:,1] = event_data['bstar']
+          A[:,2] = event_data['cstar']
+          HKL = get_hkl(qs, A=A)  # decimal hkls
+        for i in range(HKL.shape[0]):
+          h, k, l = HKL[i, :]
+          hkl_item = pg.TextItem(html='<div style="text-align: center"><span style="color: #FFF; font-size:20px">%.2f %.2f %.2f</span></div>' % 
+                                            (h, k, l), anchor=(0, 0), border='r', fill=(0, 0, 255, 100))
+          hkl_item.setPos(peaks_x[i], peaks_y[i])
+          self.imageView.getView().addItem(hkl_item)
+          self.hkl_items.append(hkl_item)
+
     self.peak_items.append(p)
     print('%d peaks found in %d/%d frame' % 
       (n_peaks, self.frame, self.data.shape[0]))

@@ -1,4 +1,5 @@
 import numpy as np 
+from numpy.linalg import norm
 import h5py
 import os
 
@@ -15,16 +16,23 @@ def det2fourier(det_xy, wave_length, det_dist):
       TYPE: 3d fourier coordinates in angstrom^-1
   
   """
-  nb_xy = len(det_xy)
-  det_dist = np.ones(nb_xy) * det_dist
-  det_dist = np.reshape(det_dist, (-1, 1))
-  q1 = np.hstack((det_xy, det_dist))
-  q1_norm = np.sqrt(np.diag(q1.dot(q1.T)))
-  q1_norm = q1_norm.reshape((-1, 1)).repeat(3, axis=1)
-  q1 = q1 / q1_norm
-  q0 = np.asarray([0., 0., 1.])
-  q0 = q0.reshape((1,-1)).repeat(nb_xy, axis=0)
-  q = 1. / wave_length * (q1 - q0)
+  if len(det_xy.shape) == 2:
+    nb_xy = len(det_xy)
+    det_dist = np.ones(nb_xy) * det_dist
+    det_dist = np.reshape(det_dist, (-1, 1))
+    q1 = np.hstack((det_xy, det_dist))
+    q1_norm = np.sqrt(np.diag(q1.dot(q1.T)))
+    q1_norm = q1_norm.reshape((-1, 1)).repeat(3, axis=1)
+    q1 = q1 / q1_norm
+    q0 = np.asarray([0., 0., 1.])
+    q0 = q0.reshape((1,-1)).repeat(nb_xy, axis=0)
+    q = 1. / wave_length * (q1 - q0)
+  else:  # only one point
+    q1 = np.asarray([det_xy[0], det_xy[1], det_dist])
+    q1_norm = norm(q1)
+    q1 = q1 / q1_norm
+    q0 = np.asarray([0., 0., 1.])
+    q = 1. / wave_length * (q1 - q0)
   return q
 
 
@@ -87,7 +95,7 @@ class Geometry(object):
     peak_remap_y_in_pixel += self.offset_y
     return peak_remap_x_in_pixel, peak_remap_y_in_pixel
 
-  def batch_map_in_m(self, raw_XYs):
+  def batch_map_from_raw_in_m(self, raw_XYs):
     raw_XYs = np.int_(np.rint(raw_XYs))
     peak_remap_x_in_m = self.geom_x[raw_XYs[:,1], raw_XYs[:,0]]
     peak_remap_y_in_m = self.geom_y[raw_XYs[:,1], raw_XYs[:,0]]
@@ -95,6 +103,13 @@ class Geometry(object):
       peak_remap_x_in_m,
       peak_remap_y_in_m
       )).T
+    return peak_remap_xy_in_m
+
+  def batch_map_from_ass_in_m(self, ass_XYs):
+    ass_XYs[:,0] -= self.offset_x
+    ass_XYs[:,1] -= self.offset_y
+
+    peak_remap_xy_in_m = ass_XYs * self.pixel_size
     return peak_remap_xy_in_m
 
   def load_geom(self, filename):
