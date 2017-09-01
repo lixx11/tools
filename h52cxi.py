@@ -48,13 +48,12 @@ if __name__ == '__main__':
         peak_x = np.zeros(1024)
         peak_y = np.zeros(1024)
         peak_intensity = np.zeros(1024)
-        data = h5['processing/cheetah/peakinfo-raw'].value
-        peak_mask = (data[:,0] > 0)* (data[:,1] > 0)
-        n_peak = peak_mask.sum().astype(np.int)
+        peak_data = h5['/processing/hitfinder/peakinfo'].value
+        n_peak = peak_data.shape[0]
         n_peaks.append(n_peak)
-        peak_x[0:n_peak] = data[peak_mask,0]
-        peak_y[0:n_peak] = data[peak_mask,1]
-        peak_intensity [0:n_peak] = data[peak_mask,2]
+        peak_x[0:n_peak] = peak_data[:,0]
+        peak_y[0:n_peak] = peak_data[:,1]
+        peak_intensity [0:n_peak] = peak_data[:,2]
         peaks_x.append(peak_x)
         peaks_y.append(peak_y)
         peaks_intensity.append(peak_intensity)
@@ -63,15 +62,15 @@ if __name__ == '__main__':
         # wavelength
         wavelengths.append(h5['/LCLS/photon_energy_eV'].value[0])
 
-        pattern = h5['data/rawdata0'].value
+        pattern = h5['/data/rawdata0'].value
         sy, sx = pattern.shape
         pattern = pattern.reshape((1, sy, sx))
         if i == 0:
-            cxi.create_dataset('/entry_1/instrument_1/detector_1/detector_corrected/data',
+            cxi.create_dataset('/entry_1/data_1/data',
                 data=pattern, maxshape=(None, sy, sx))
         else:
-            cxi['/entry_1/instrument_1/detector_1/detector_corrected/data'].resize(i+1, axis=0)
-            cxi['/entry_1/instrument_1/detector_1/detector_corrected/data'][i] = pattern
+            cxi['/entry_1/data_1/data'].resize(i+1, axis=0)
+            cxi['/entry_1/data_1/data'][i] = pattern
 
     peaks_x = np.asarray(peaks_x)
     peaks_y = np.asarray(peaks_y)
@@ -85,4 +84,5 @@ if __name__ == '__main__':
     cxi.create_dataset('/LCLS/photon_energy_eV', data=wavelengths)
     cxi.create_dataset('/entry_1/result_1/nPeaks', data=n_peaks)
     cxi.create_dataset('/entry_1/result_1/peakTotalIntensity', data=peaks_intensity)
+    cxi.create_dataset('/entry_1/result_1/peakSNR', data=np.zeros_like(peaks_intensity))  # dummy SNR
     cxi.close()
