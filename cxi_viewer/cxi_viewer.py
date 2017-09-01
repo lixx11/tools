@@ -648,7 +648,7 @@ class CXIWindow(QtGui.QMainWindow):
       return
     self.cxi_file = fpath
     cxi = h5py.File(self.cxi_file, 'r')
-    self.data = cxi['/entry_1/instrument_1/detector_1/detector_corrected/data']
+    self.data = cxi['/entry_1/data_1/data']
     self.nb_pattern = self.data.shape[0]
     try:
       self.peaks_x = cxi['/entry_1/result_1/peakXPosRaw']
