@@ -97,8 +97,8 @@ class Geometry(object):
 
   def batch_map_from_raw_in_m(self, raw_XYs):
     raw_XYs = np.int_(np.rint(raw_XYs))
-    peak_remap_x_in_m = self.geom_x[raw_XYs[:,1], raw_XYs[:,0]]
-    peak_remap_y_in_m = self.geom_y[raw_XYs[:,1], raw_XYs[:,0]]
+    peak_remap_x_in_m = self.geom_x[raw_XYs[:,0], raw_XYs[:,1]]
+    peak_remap_y_in_m = self.geom_y[raw_XYs[:,0], raw_XYs[:,1]]
     peak_remap_xy_in_m = np.vstack((
       peak_remap_x_in_m,
       peak_remap_y_in_m

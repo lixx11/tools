@@ -53,14 +53,14 @@ def load_data_from_stream(filename):
     # peaks
     peakXYs = []
     for p in c.peaks:
-      peakXYs.append([p.fs, p.ss])
+      peakXYs.append([p.ss, p.fs])
     peakXYs = np.asarray(peakXYs)
     # collect reflections
     rawXYs = []
     HKLs = []
     Is = []
     for r in c.reflections:
-      rawXYs.append([r.fs, r.ss])
+      rawXYs.append([r.ss, r.fs])
       HKLs.append([r.h, r.k, r.l])
       Is.append(r.I)
     rawXYs = np.asarray(rawXYs)
