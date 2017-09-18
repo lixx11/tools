@@ -53,14 +53,14 @@ def load_data_from_stream(filename):
     # peaks
     peakXYs = []
     for p in c.peaks:
-      peakXYs.append([p.ss, p.fs])
+      peakXYs.append([p.fs, p.ss])
     peakXYs = np.asarray(peakXYs)
     # collect reflections
     rawXYs = []
     HKLs = []
     Is = []
     for r in c.reflections:
-      rawXYs.append([r.ss, r.fs])
+      rawXYs.append([r.fs, r.ss])
       HKLs.append([r.h, r.k, r.l])
       Is.append(r.I)
     rawXYs = np.asarray(rawXYs)
@@ -334,14 +334,15 @@ class StreamTable(QtGui.QDialog):
     geom = self.parent().geom 
     assXYs = geom.batch_map_from_raw_in_m(peakXYs)
     det_dist = self.parent().det_dist  # detector distance in meters
-    wavelength = self.parent().wavelength  # XFEL wavelength in meters
+    wavelength = self.parent().wavelength[event_id]  # XFEL wavelength in meters
     qs = det2fourier(assXYs, wavelength, det_dist)
     A = np.ones((3,3))
-    A[:,0] = astar * 1E6 
-    A[:,1] = bstar * 1E6 
-    A[:,2] = cstar * 1E6 
+    A[:,0] = astar * 1E-9
+    A[:,1] = bstar * 1E-9
+    A[:,2] = cstar * 1E-9
     HKL = get_hkl(qs, A=A)  # decimal hkls
     rHKL = np.int_(np.round(HKL)) # integer hkls
+    print(rHKL)
     eHKL = np.abs(HKL - rHKL)  # hkl error
     pair_idx = np.max(eHKL, axis=1) < 0.25
     nb_paired_peaks = pair_idx.sum()
