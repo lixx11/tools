@@ -1,0 +1,27 @@
+reference:
+  structure: /Volumes/xxli/Research/MD/CB1/MD_modifiled/sys1/prot_lig.pdb  # inactive crystal structure
+  # structure: /Volumes/xxli/Research/MD/CB1/MD_modifiled/sys3/prot_lig.pdb  # active crystal structure
+  # structure: /Volumes/xxli/Research/MD/CB1/mutation_apo/CB1aF200A-W356A_apo/prot_apo.pdb  # active crystal structure
+  resi: 101-413
+
+mobile:
+  structure: /Volumes/xxli/Research/MD/CB1/mutation_apo_W279As/CB1aW279A_apo/prot_apo.pdb
+  resi: 101-413
+  trajectory: 
+    - /Volumes/xxli/Research/MD/CB1/mutation_apo_W279As/CB1aW279A_apo/run_b/CB1aW279A_apo_bmd_200ns.xtc
+    # - /Volumes/xxli/Research/MD/CB1/mutation_apo_W279As/CB1aW279A_apo/run_b/CB1aW279A_apo_bmd_1000ns.xtc
+  interval: 100
+
+# transmembranine definition
+TM: 
+  - 114-143  # TM1
+  - 154-178  # TM2
+  - 186-219  # TM3
+  - 230-253  # TM4
+  - 273-304  # TM5
+  - 339-367  # TM6
+  - 373-400  # TM7
+
+# output
+dirname: /Volumes/xxli/Research/MD/CB1/mutation_apo_W279As/CB1aW279A_apo/run_b
+prefix: rmsd_matrix

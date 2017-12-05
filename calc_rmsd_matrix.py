@@ -11,6 +11,10 @@ import sys
 from tqdm import tqdm
 
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import matplotlib.animation as manimation
 
 
 def get_TM_sele(TM_list, ref_name, mob_name):
@@ -40,7 +44,9 @@ mob_mol = cmd.load(config['mobile']['structure'], mob_name)
 mob_traj = config['mobile']['trajectory']
 mob_interval = config['mobile']['interval']
 if mob_traj is not None:
-    cmd.load_traj(mob_traj, mob_name, interval=mob_interval)
+    trajs = config['mobile']['trajectory']
+    for i in range(len(trajs)):
+        cmd.load_traj(trajs[i], mob_name, interval=mob_interval)
 mob_resi = config['mobile']['resi']
 cmd.alter('/%s///%s' % (mob_name, mob_resi), 'chain="A"')
 
@@ -53,12 +59,45 @@ n_frames = cmd.count_frames()
 print('%d frames to process...' % n_frames)
 RMSD_MATRIX = np.zeros((n_frames,7,7))
 for fid in tqdm(range(n_frames)):
-    # cmd.frame(fid+1)
     for i in range(7):
         cmd.fit(mob_TM_sele['TM%d' % (i+1)], ref_TM_sele['TM%d' % (i+1)], mobile_state=(fid+1))
         for j in range(7):
             ref_xyz = cmd.get_coords(ref_TM_sele['TM%d' % (j+1)], 1)
             mob_xyz = cmd.get_coords(mob_TM_sele['TM%d' % (j+1)], fid+1)
-            rms = np.sqrt(((ref_xyz - mob_xyz) ** 2).sum(axis=1)).mean()
+            rms = np.sqrt(((ref_xyz - mob_xyz) ** 2).sum(axis=1).mean())
             RMSD_MATRIX[fid,i,j] = rms
-np.save('rmsd.npy', RMSD_MATRIX)
+
+# write npy array and create movie
+np.save(os.path.join(config['dirname'], '%s.npy' % config['prefix']), RMSD_MATRIX)
+
+FFMpegWriter = manimation.writers['ffmpeg']
+metadata = dict(title='RMSD MATRIX', artist='Matplotlib',
+                comment='Movie support!')
+writer = FFMpegWriter(fps=5, metadata=metadata)
+fig = plt.figure()
+l = plt.imshow(RMSD_MATRIX[0,:,:], interpolation='nearest')
+plt.title('1/%d' % n_frames)
+plt.clim(0, 10)
+plt.colorbar()
+plt.tight_layout()
+
+# plot ticks
+yticks = ['TM%d' % (i+1) for i in range(7)]
+xticks = ['TM%d-TM%d' % (i+1, i+1) for i in range(7)]
+plt.yticks(np.arange(7), yticks)
+plt.xticks(np.arange(7), xticks, fontsize=8)
+
+offset = -0.3, 0.15
+
+with writer.saving(fig, "%s.mp4" % config['prefix'], 100):
+    for i in tqdm(range(n_frames)):
+        l.set_data(RMSD_MATRIX[i,:,:])
+        plt.title('%d/%d' % (i+1, n_frames))
+
+        texts = []
+        for row in range(7):
+            for col in range(7):
+                texts.append(plt.text(col+offset[0], row+offset[1], '%3.1f' % RMSD_MATRIX[i,row,col]))
+        writer.grab_frame()
+        for text in texts:
+            text.remove()
