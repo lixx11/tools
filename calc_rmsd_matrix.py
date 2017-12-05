@@ -23,8 +23,8 @@ def get_TM_sele(TM_list, ref_name, mob_name):
     mob_TM_sele = {}
     for i in range(7):
         TM = map(int, TM_list[i].split('-'))
-        ref_TM_sele['TM%d' % (i+1)] = '/%s//A/%d-%d/c+ca+n' % (ref_name, TM[0], TM[1])
-        mob_TM_sele['TM%d' % (i+1)] = '/%s//A/%d-%d/c+ca+n' % (mob_name, TM[0], TM[1])
+        ref_TM_sele['TM%d' % (i+1)] = '/%s///%d-%d/c+ca+n' % (ref_name, TM[0], TM[1])
+        mob_TM_sele['TM%d' % (i+1)] = '/%s///%d-%d/c+ca+n' % (mob_name, TM[0], TM[1])
     return ref_TM_sele, mob_TM_sele
 
 
@@ -39,16 +39,20 @@ config = yaml.load(open(config_file, 'r'))
 # load structure and trajectory
 ref_mol = cmd.load(config['reference']['structure'], ref_name)
 ref_resi = config['reference']['resi']
-cmd.alter('/%s///%s' % (ref_name, ref_resi), 'chain="A"')
+cmd.alter('/%s///%s' % (ref_name, ref_resi), 'chain=""')
+cmd.alter('/%s///%s' % (ref_name, ref_resi), 'segi=""')
 mob_mol = cmd.load(config['mobile']['structure'], mob_name)
 mob_traj = config['mobile']['trajectory']
 mob_interval = config['mobile']['interval']
+
+print('loading trajectories...')
 if mob_traj is not None:
     trajs = config['mobile']['trajectory']
     for i in range(len(trajs)):
         cmd.load_traj(trajs[i], mob_name, interval=mob_interval)
 mob_resi = config['mobile']['resi']
-cmd.alter('/%s///%s' % (mob_name, mob_resi), 'chain="A"')
+cmd.alter('/%s///%s' % (mob_name, mob_resi), 'chain=""')
+cmd.alter('/%s///%s' % (mob_name, mob_resi), 'segi=""')
 
 # build TM selections
 TM_list = config['TM']
@@ -56,7 +60,7 @@ ref_TM_sele, mob_TM_sele = get_TM_sele(TM_list, ref_name, mob_name)
 
 # calculate rmsd matrix
 n_frames = cmd.count_frames()
-print('%d frames to process...' % n_frames)
+print('calculating RMSD matrix...')
 RMSD_MATRIX = np.zeros((n_frames,7,7))
 for fid in tqdm(range(n_frames)):
     for i in range(7):
@@ -89,6 +93,7 @@ plt.xticks(np.arange(7), xticks, fontsize=8)
 
 offset = -0.3, 0.15
 
+print('making movie...')
 with writer.saving(fig, "%s.mp4" % config['prefix'], 100):
     for i in tqdm(range(n_frames)):
         l.set_data(RMSD_MATRIX[i,:,:])
