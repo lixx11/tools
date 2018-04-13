@@ -1,5 +1,10 @@
 work dir: '/Users/lixuanxuan/tmp'
 data location: '/entry_1/data_1/data'
 peak info location: '/entry_1/result_1'
+
+# optional parameters
+cxi file: '/Users/lixuanxuan/tmp/r0353.cxi'
 pixel size: 156  # in um
 detector distance: 120  # in mm
+ref stream file: '/Users/lixuanxuan/tmp/v1.stream'
+test stream file: '/Users/lixuanxuan/tmp/v1.stream'

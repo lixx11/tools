@@ -410,6 +410,9 @@ class GUI(QtGui.QMainWindow):
         self.peak_info_location = settings.peak_info_location
         self.pixel_size = settings.pixel_size
         self.det_dist = settings.detector_distance
+        self.cxi_file = settings.cxi_file
+        self.ref_stream_file = settings.ref_stream_file
+        self.test_stream_file = settings.test_stream_file
 
         # setup ui
         dir_ = os.path.dirname(os.path.abspath(__file__))
@@ -421,15 +424,12 @@ class GUI(QtGui.QMainWindow):
 
         self.nb_frame = 0
         self.frame = 0
-        self.cxi_file = None
         self.data = None
         self.geom_file = None
         self.geom = None
-        self.ref_stream_file = None
         self.ref_stream = None
         self.ref_events = []
         self.ref_reflections = {}
-        self.test_stream_file = None
         self.test_stream = None
         self.test_events = []
         self.test_reflections = {}
@@ -442,10 +442,10 @@ class GUI(QtGui.QMainWindow):
             symbol='x', size=10, pen='r', brush=(255, 255, 255, 0)
         )
         self.ref_reflection_item = pg.ScatterPlotItem(
-            symbol='o', size=16, pen='g', brush=(255, 255, 255, 0)
+            symbol='o', size=12, pen='g', brush=(255, 255, 255, 0)
         )
         self.test_reflection_item = pg.ScatterPlotItem(
-            symbol='o', size=16, pen='y', brush=(255, 255, 255, 0)
+            symbol='o', size=14, pen='y', brush=(255, 255, 255, 0)
         )
         self.peak_stream_item = pg.ScatterPlotItem(
             symbol='d', size=5, pen='r', brush=(255, 255, 255, 0)
@@ -459,6 +459,7 @@ class GUI(QtGui.QMainWindow):
 
         self.image_view.getView().addItem(self.peak_item)
         self.image_view.getView().addItem(self.ref_reflection_item)
+        self.image_view.getView().addItem(self.test_reflection_item)
         self.stream_plot.addItem(self.ref_stream_item)
         self.stream_plot.addItem(self.test_stream_item)
         self.stream_plot.addItem(self.peak_stream_item)
@@ -504,6 +505,13 @@ class GUI(QtGui.QMainWindow):
                                        children=params)
         self.parameterTree.setParameters(self.params, showTop=False)
 
+        if self.cxi_file is not None:
+            self.load_cxi_file(self.cxi_file)
+        if self.ref_stream_file is not None:
+            self.load_stream_file(self.ref_stream_file, 'ref')
+        if self.test_stream_file is not None:
+            self.load_stream_file(self.test_stream_file, 'test')
+
         # menu bar actions
         self.action_load_cxi.triggered.connect(self.load_cxi)
         self.action_load_geom.triggered.connect(self.load_geom)
@@ -528,13 +536,16 @@ class GUI(QtGui.QMainWindow):
             self, 'Open File', self.workdir, 'CXI File (*.cxi)')
         if filepath == '':
             return
+        self.load_cxi_file(filepath)
+
+    def load_cxi_file(self, cxi_file):
         try:
-            h5_obj = h5py.File(filepath, 'r')
+            h5_obj = h5py.File(cxi_file, 'r')
             data = h5_obj[self.data_location]
         except IOError:
-            print('Failed to load %s' % filepath)
+            print('Failed to load %s' % cxi_file)
             return
-        self.cxi_file = filepath
+        self.cxi_file = cxi_file
         self.data = data
         self.nb_frame = self.data.shape[0]
         # collect peaks from cxi, XPosRaw/YPosRaw is fs, ss, respectively
@@ -585,7 +596,10 @@ class GUI(QtGui.QMainWindow):
             self, 'Open File', self.workdir, 'Stream File (*.stream)')
         if filepath == '':
             return
-        stream = Stream(filepath)
+        self.load_stream_file(filepath, flag)
+
+    def load_stream_file(self, stream_file, flag):
+        stream = Stream(stream_file)
         # collect reflections
         all_reflections = {}
         events = []
@@ -604,13 +618,13 @@ class GUI(QtGui.QMainWindow):
                     )
             all_reflections[event] = np.array(reflections)
         if flag == 'ref':
-            self.ref_stream_file = filepath
+            self.ref_stream_file = stream_file
             self.ref_stream = stream
             self.ref_reflections = all_reflections
             self.ref_events = events
             self.params.param('ref stream').setValue(self.ref_stream_file)
         elif flag == 'test':
-            self.test_stream_file = filepath
+            self.test_stream_file = stream_file
             self.test_stream = stream
             self.test_reflections = all_reflections
             self.test_events = events
