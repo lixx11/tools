@@ -1,0 +1,5 @@
+work dir: '/Users/lixuanxuan/tmp'
+data location: '/entry_1/data_1/data'
+peak info location: '/entry_1/result_1'
+pixel size: 156  # in um
+detector distance: 120  # in mm

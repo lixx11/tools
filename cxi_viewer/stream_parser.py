@@ -10,9 +10,6 @@ Options:
 """
 
 import numpy as np
-import scipy as sp
-import os
-import sys
 from docopt import docopt
 import re
 
@@ -37,12 +34,10 @@ class Chunk(object):
             else:
                 peak = Peak(content[i])
                 self.peaks.append(peak)
-        indexed = False
         self.crystals = []
         crystal_start = peak_end + 1
         for i in range(peak_end, len(content)):
             if 'End crystal' in content[i]:
-                indexed = True
                 crystal_end = i
                 crystal = Crystal(content[crystal_start:crystal_end])
                 self.crystals.append(crystal)
@@ -108,10 +103,10 @@ class Reflection(object):
     def __init__(self, content):
         h, k, l, I, sigma_I, peak, background, fs, ss, panel = content.split()
         panel = panel[:-1]
-        self.h, self.k, self.l = h, k, l
-        self.I, self.sigma_I = I, sigma_I
-        self.peak, self.background = peak, background
-        self.fs, self.ss = fs, ss
+        self.h, self.k, self.l = int(h), int(k), int(l)
+        self.I, self.sigma_I = float(I), float(sigma_I)
+        self.peak, self.background = float(peak), float(background)
+        self.fs, self.ss = float(fs), float(ss)
         self.panel = panel
 
 

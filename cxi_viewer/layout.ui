@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>800</width>
-    <height>600</height>
+    <width>1019</width>
+    <height>738</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -20,12 +20,18 @@
       <property name="orientation">
        <enum>Qt::Horizontal</enum>
       </property>
+      <property name="handleWidth">
+       <number>3</number>
+      </property>
       <widget class="QSplitter" name="splitterV">
        <property name="orientation">
         <enum>Qt::Vertical</enum>
        </property>
-       <widget class="ImageView" name="imageView"/>
-       <widget class="PlotWidget" name="streamPlot"/>
+       <property name="handleWidth">
+        <number>3</number>
+       </property>
+       <widget class="ImageView" name="image_view"/>
+       <widget class="PlotWidget" name="stream_plot"/>
       </widget>
       <widget class="ParameterTree" name="parameterTree"/>
      </widget>
@@ -37,7 +43,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>800</width>
+     <width>1019</width>
      <height>22</height>
     </rect>
    </property>
@@ -47,13 +53,13 @@
     </property>
     <widget class="QMenu" name="menuLoadStreamAs">
      <property name="title">
-      <string>Load Stream(s) as...</string>
+      <string>Load Stream as...</string>
      </property>
-     <addaction name="actionRefStream"/>
-     <addaction name="actionTestStream"/>
+     <addaction name="action_load_ref_stream"/>
+     <addaction name="action_load_test_stream"/>
     </widget>
-    <addaction name="actionLoadCXI"/>
-    <addaction name="actionLoadGeom"/>
+    <addaction name="action_load_cxi"/>
+    <addaction name="action_load_geom"/>
     <addaction name="menuLoadStreamAs"/>
     <addaction name="separator"/>
     <addaction name="actionLoadState"/>
@@ -63,13 +69,13 @@
     <property name="title">
      <string>View</string>
     </property>
-    <addaction name="actionShowStreamTable"/>
+    <addaction name="action_show_stream_table"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuView"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
-  <action name="actionLoadCXI">
+  <action name="action_load_cxi">
    <property name="text">
     <string>Load CXI</string>
    </property>
@@ -80,7 +86,7 @@
     <string>Load single cxi file</string>
    </property>
   </action>
-  <action name="actionLoadGeom">
+  <action name="action_load_geom">
    <property name="text">
     <string>Load Geometry</string>
    </property>
@@ -96,7 +102,7 @@
     <string>Quit</string>
    </property>
   </action>
-  <action name="actionShowStreamTable">
+  <action name="action_show_stream_table">
    <property name="text">
     <string>Show stream table</string>
    </property>
@@ -104,14 +110,14 @@
     <string>Show stream table</string>
    </property>
   </action>
-  <action name="actionRefStream">
+  <action name="action_load_ref_stream">
    <property name="text">
-    <string>reference stream</string>
+    <string>ref stream</string>
    </property>
   </action>
-  <action name="actionTestStream">
+  <action name="action_load_test_stream">
    <property name="text">
-    <string>test stream(s)</string>
+    <string>test stream</string>
    </property>
   </action>
   <action name="actionTest_stream_2">
