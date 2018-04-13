@@ -436,6 +436,8 @@ class GUI(QtGui.QMainWindow):
         self.peaks = None
         self.nb_peaks = None
         self.show_hkl = False
+        self.show_ref_stream = True
+        self.show_test_stream = True
 
         # plot items
         self.peak_item = pg.ScatterPlotItem(
@@ -500,6 +502,14 @@ class GUI(QtGui.QMainWindow):
                 'name': 'current frame', 'type': 'int',
                 'value': self.frame
             },
+            {
+                'name': 'show ref stream', 'type': 'bool',
+                'value': self.show_ref_stream
+            },
+            {
+                'name': 'show test stream', 'type': 'bool',
+                'value': self.show_test_stream
+            }
         ]
         self.params = Parameter.create(name='params', type='group',
                                        children=params)
@@ -516,14 +526,22 @@ class GUI(QtGui.QMainWindow):
         self.action_load_cxi.triggered.connect(self.load_cxi)
         self.action_load_geom.triggered.connect(self.load_geom)
         self.action_load_ref_stream.triggered.connect(
-            partial(self.load_stream, 'ref'))
+            partial(self.load_stream, flag='ref'))
         self.action_load_test_stream.triggered.connect(
-            partial(self.load_stream, 'test')
+            partial(self.load_stream, flag='test')
         )
 
         # parameter tree slots
         self.params.param(
             'current frame').sigValueChanged.connect(self.change_frame)
+        self.params.param(
+            'show ref stream').sigValueChanged.connect(
+            partial(self.change_show_stream, flag='ref')
+        )
+        self.params.param(
+            'show test stream').sigValueChanged.connect(
+            partial(self.change_show_stream, flag='test')
+        )
 
         # image view / stream plot slots
         self.peak_stream_item.sigClicked.connect(self.stream_item_clicked)
@@ -637,6 +655,16 @@ class GUI(QtGui.QMainWindow):
     def stream_item_clicked(self, _, pos):
         event = int(pos[0].pos()[0])
         self.params.param('current frame').setValue(event)
+
+    @pyqtSlot(object, object, str)
+    def change_show_stream(self, _, show, flag):
+        if flag == 'ref':
+            self.show_ref_stream = not self.show_ref_stream
+        elif flag == 'test':
+            self.show_test_stream = not self.show_test_stream
+        else:
+            raise ValueError('Undefined flag: %s' % flag)
+        self.update_display()
 
     def mouseMoved(self, pos):
         if self.cxi_file is None:
@@ -851,11 +879,12 @@ class GUI(QtGui.QMainWindow):
 
         # plot reflections
         self.ref_reflection_item.clear()
-        if self.frame in self.ref_events:
+        if self.show_ref_stream and self.frame in self.ref_events:
             reflections = self.ref_reflections[self.frame]
             if len(reflections) > 0:
                 self.ref_reflection_item.setData(pos=reflections + 0.5)
-        if self.frame in self.test_events:
+        self.test_reflection_item.clear()
+        if self.show_test_stream and self.frame in self.test_events:
             reflections = self.test_reflections[self.frame]
             if len(reflections) > 0:
                 self.test_reflection_item.setData(pos=reflections + 0.5)
