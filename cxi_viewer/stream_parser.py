@@ -16,18 +16,37 @@ import re
 
 class Chunk(object):
     def __init__(self, content):
-        self.image_filename = content[1].split(':')[1][1:-1]
-        self.event = int(content[2].split(':')[1][3:-1])
-        self.image_serial_number = int(content[3].split(':')[1][1:-1])
-        self.indexed_by = content[4].split('=')[1][1:-1]
-        self.photon_energy_eV = float(content[5].split('=')[1])
-        self.beam_divergence = float(content[6].split(' ')[2])
-        self.beam_bandwidth = float(content[7].split(' ')[2])
-        self.average_camera_length = float(content[8].split(' ')[2])
-        self.num_peaks = int(content[9].split('=')[1])
-        self.num_saturated_peaks = int(content[10].split('=')[1])
+        peak_start = 0
+        for i in range(len(content)):
+            if 'Peaks from peak search' in content[i]:
+                peak_start = i
+        if peak_start == 0:
+            raise ValueError('No peak section found in this chunk!')
+        for i in range(peak_start):
+            if 'Image filename' in content[i]:
+                self.image_filename = content[i].split(':')[1][1:-1]
+            elif 'Event' in content[i]:
+                self.event = int(content[i].split(':')[1][3:-1])
+            elif 'Image serial number' in content[i]:
+                self.image_serial_number = int(content[i].split(':')[1][1:-1])
+            elif 'indexed_by' in content[i]:
+                self.indexed_by = content[i].split('=')[1][1:-1]
+            elif 'photon_energy_eV' in content[i]:
+                self.photon_energy_eV = float(content[i].split('=')[1])
+            elif 'beam_divergence' in content[i]:
+                self.beam_divergence = float(content[i].split(' ')[2])
+            elif 'beam_bandwidth' in content[i]:
+                self.beam_bandwidth = float(content[i].split(' ')[2])
+            elif 'average_camera_length' in content[i]:
+                self.average_camera_length = float(content[i].split(' ')[2])
+            elif 'num_peaks' in content[i]:
+                self.num_peaks = int(content[i].split('=')[1])
+            elif 'num_saturated_peaks' in content[i]:
+                self.num_saturated_peaks = int(content[i].split('=')[1])
+            else:
+                pass
         self.peaks = []
-        for i in range(13, len(content)):
+        for i in range(peak_start+1, len(content)):
             if 'End of peak list' in content[i]:
                 peak_end = i
                 break
